@@ -20,7 +20,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_default_chart_accounts: {
+        Args: { company_uuid: string }
+        Returns: undefined
+      }
+      get_user_current_company: {
+        Args: { user_uuid?: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
