@@ -28,18 +28,21 @@ export function useAuth() {
           // Fetch user profile
           setTimeout(async () => {
             try {
-              // Use any to bypass type checking until Supabase types are updated
-              const supabaseAny = supabase as any;
-              const { data: profileData, error } = await supabaseAny
+              const { data: profileData, error } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('user_id', session.user.id)
-                .single();
+                .maybeSingle();
               
-              if (error && error.code !== 'PGRST116') {
+              if (error) {
                 console.error('Error fetching profile:', error);
+                toast({
+                  title: "Erro ao carregar perfil",
+                  description: "Tente fazer login novamente.",
+                  variant: "destructive",
+                });
               } else {
-                setProfile(profileData);
+                setProfile(profileData as Profile);
               }
             } catch (error) {
               console.error('Error in profile fetch:', error);

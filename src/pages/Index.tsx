@@ -1,157 +1,128 @@
-import { useState, useEffect } from 'react';
-import { StatCard } from '@/components/dashboard/StatCard';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  DollarSign, 
-  TrendingUp, 
-  TrendingDown, 
-  Wallet,
-  Calendar,
-  AlertTriangle
-} from 'lucide-react';
-import { useAuth } from '@/hooks/use-auth';
-import { supabase } from '@/integrations/supabase/client';
+import { StatCard } from "@/components/dashboard/StatCard";
+import { useCompanies } from "@/hooks/use-companies";
+import { useTransactions } from "@/hooks/use-transactions";
+import { useBankAccounts } from "@/hooks/use-bank-accounts";
+import { useMemo } from "react";
+import { TrendingUp, TrendingDown, Wallet, CreditCard } from "lucide-react";
 
-interface DashboardStats {
-  totalReceitas: number;
-  totalDespesas: number;
-  saldoAtual: number;
-  contasPendentes: number;
-}
+const Index = () => {
+  const { currentCompany } = useCompanies();
+  const { transactions } = useTransactions(currentCompany?.id);
+  const { bankAccounts } = useBankAccounts(currentCompany?.id);
 
-const Dashboard = () => {
-  const { profile } = useAuth();
-  const [stats, setStats] = useState<DashboardStats>({
-    totalReceitas: 0,
-    totalDespesas: 0,
-    saldoAtual: 0,
-    contasPendentes: 0
-  });
-  const [recentTransactions, setRecentTransactions] = useState([]);
+  // Calculate statistics
+  const stats = useMemo(() => {
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const monthlyTransactions = transactions.filter(t => 
+      new Date(t.created_at) >= firstDayOfMonth
+    );
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+    const monthlyRevenue = monthlyTransactions
+      .filter(t => t.transaction_type === 'entrada' && t.status === 'pago')
+      .reduce((sum, t) => sum + t.amount, 0);
 
-  const loadDashboardData = async () => {
-    try {
-      // For now, we'll use mock data since the user might not have companies/transactions yet
-      setStats({
-        totalReceitas: 25430.50,
-        totalDespesas: 18230.25,
-        saldoAtual: 7200.25,
-        contasPendentes: 12
-      });
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-    }
-  };
+    const monthlyExpenses = monthlyTransactions
+      .filter(t => t.transaction_type === 'saida' && t.status === 'pago')
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalCashBalance = bankAccounts.reduce((sum, acc) => sum + acc.current_balance, 0);
+
+    const accountsReceivable = transactions
+      .filter(t => t.transaction_type === 'entrada' && t.status === 'pendente')
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    return {
+      monthlyRevenue,
+      monthlyExpenses,
+      totalCashBalance,
+      accountsReceivable,
+    };
+  }, [transactions, bankAccounts]);
+
+  const recentTransactions = transactions.slice(0, 3);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Dashboard Financeiro</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground mt-2">
-          Bem-vindo, {profile?.nome}! Aqui está o resumo da sua situação financeira.
+          {currentCompany ? `Visão geral de ${currentCompany.name}` : 'Visão geral do seu sistema financeiro'}
         </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Saldo Atual"
-          value={`R$ ${stats.saldoAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-          icon={Wallet}
-          trend={{ value: "12% do mês passado", isPositive: true }}
-        />
-        
+      {/* Cards de Estatísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Receitas do Mês"
-          value={`R$ ${stats.totalReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+          value={`R$ ${stats.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
           icon={TrendingUp}
-          trend={{ value: "8% do mês passado", isPositive: true }}
+          trend={{ value: "12.5% vs mês anterior", isPositive: true }}
         />
-        
         <StatCard
           title="Despesas do Mês"
-          value={`R$ ${stats.totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+          value={`R$ ${stats.monthlyExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
           icon={TrendingDown}
-          trend={{ value: "3% do mês passado", isPositive: false }}
+          trend={{ value: "3.2% vs mês anterior", isPositive: false }}
         />
-        
         <StatCard
-          title="Contas Pendentes"
-          value={stats.contasPendentes.toString()}
-          icon={AlertTriangle}
-          trend={{ value: "5 vencem esta semana", isPositive: false }}
+          title="Saldo em Caixa"
+          value={`R$ ${stats.totalCashBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+          icon={Wallet}
+          trend={{ value: "8.1% vs mês anterior", isPositive: true }}
+        />
+        <StatCard
+          title="Contas a Receber"
+          value={`R$ ${stats.accountsReceivable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+          icon={CreditCard}
+          trend={{ value: "5.4% vs mês anterior", isPositive: true }}
         />
       </div>
 
-      {/* Quick Actions and Recent Activity */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Ações Rápidas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <div className="grid gap-2">
-              <button className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-colors">
-                <span>Novo Lançamento</span>
-                <TrendingUp className="h-4 w-4" />
-              </button>
-              <button className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-colors">
-                <span>Registrar Pagamento</span>
-                <Wallet className="h-4 w-4" />
-              </button>
-              <button className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-colors">
-                <span>Ver Relatórios</span>
-                <Calendar className="h-4 w-4" />
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Transactions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Transações Recentes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Mock recent transactions */}
-              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                <div>
-                  <p className="font-medium">Venda de Serviços</p>
-                  <p className="text-sm text-muted-foreground">Cliente XYZ Ltda</p>
+      {/* Gráficos e outras visualizações */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-card rounded-lg border p-6">
+          <h3 className="text-lg font-semibold mb-4">Fluxo de Caixa</h3>
+          <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+            Gráfico será implementado aqui
+          </div>
+        </div>
+        
+        <div className="bg-card rounded-lg border p-6">
+          <h3 className="text-lg font-semibold mb-4">Últimas Transações</h3>
+          <div className="space-y-3">
+            {recentTransactions.length > 0 ? (
+              recentTransactions.map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div>
+                    <p className="font-medium">{transaction.description}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(transaction.created_at).toLocaleDateString('pt-BR')} • 
+                      {transaction.status === 'pago' ? ' Pago' : ' Pendente'}
+                    </p>
+                  </div>
+                  <span className={`font-medium ${
+                    transaction.transaction_type === 'entrada' 
+                      ? 'text-emerald-600' 
+                      : 'text-red-600'
+                  }`}>
+                    {transaction.transaction_type === 'entrada' ? '+' : '-'}
+                    R$ {transaction.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
                 </div>
-                <span className="text-success font-semibold">+R$ 2.500,00</span>
+              ))
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Nenhuma transação encontrada</p>
+                <p className="text-sm">Comece criando seus lançamentos financeiros</p>
               </div>
-              
-              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                <div>
-                  <p className="font-medium">Aluguel Escritório</p>
-                  <p className="text-sm text-muted-foreground">Imobiliária ABC</p>
-                </div>
-                <span className="text-destructive font-semibold">-R$ 1.200,00</span>
-              </div>
-              
-              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                <div>
-                  <p className="font-medium">Fornecedor de Materiais</p>
-                  <p className="text-sm text-muted-foreground">Materiais Tech Ltda</p>
-                </div>
-                <span className="text-destructive font-semibold">-R$ 850,00</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
-export default Dashboard;
+export default Index;
