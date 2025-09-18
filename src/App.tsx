@@ -8,6 +8,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import CashFlow from "./pages/CashFlow";
 
 const queryClient = new QueryClient();
 
@@ -22,7 +23,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/" element={<AppLayout><Index /></AppLayout>} />
             <Route path="/empresas" element={<AppLayout><div>Empresas - Em desenvolvimento</div></AppLayout>} />
-            <Route path="/fluxo-caixa" element={<AppLayout><div>Fluxo de Caixa - Em desenvolvimento</div></AppLayout>} />
+            <Route path="/fluxo-caixa" element={<AppLayout><CashFlow /></AppLayout>} />
             <Route path="/contas-bancarias" element={<AppLayout><div>Contas Bancárias - Em desenvolvimento</div></AppLayout>} />
             <Route path="/lancamentos" element={<AppLayout><div>Lançamentos - Em desenvolvimento</div></AppLayout>} />
             <Route path="/contas-pagar" element={<AppLayout><div>Contas a Pagar - Em desenvolvimento</div></AppLayout>} />

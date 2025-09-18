@@ -65,7 +65,7 @@ export function useTransactions(companyId?: string) {
     }
   };
 
-  const createTransaction = async (transactionData: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'chart_accounts' | 'bank_accounts' | 'contacts'>) => {
+  const createTransaction = async (transactionData: Omit<Transaction, 'id' | 'company_id' | 'created_at' | 'updated_at' | 'chart_accounts' | 'bank_accounts' | 'contacts'>) => {
     if (!companyId) return { error: new Error('Company ID required') };
 
     try {
