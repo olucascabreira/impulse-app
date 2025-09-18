@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import CashFlow from "./pages/CashFlow";
+import Transactions from "./pages/Transactions";
 
 const queryClient = new QueryClient();
 
@@ -25,7 +26,7 @@ const App = () => (
             <Route path="/empresas" element={<AppLayout><div>Empresas - Em desenvolvimento</div></AppLayout>} />
             <Route path="/fluxo-caixa" element={<AppLayout><CashFlow /></AppLayout>} />
             <Route path="/contas-bancarias" element={<AppLayout><div>Contas Bancárias - Em desenvolvimento</div></AppLayout>} />
-            <Route path="/lancamentos" element={<AppLayout><div>Lançamentos - Em desenvolvimento</div></AppLayout>} />
+            <Route path="/lancamentos" element={<AppLayout><Transactions /></AppLayout>} />
             <Route path="/contas-pagar" element={<AppLayout><div>Contas a Pagar - Em desenvolvimento</div></AppLayout>} />
             <Route path="/contas-receber" element={<AppLayout><div>Contas a Receber - Em desenvolvimento</div></AppLayout>} />
             <Route path="/contatos" element={<AppLayout><div>Contatos - Em desenvolvimento</div></AppLayout>} />
