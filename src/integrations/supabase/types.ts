@@ -326,6 +326,10 @@ export type Database = {
         Args: { user_uuid?: string }
         Returns: string
       }
+      user_can_access_company: {
+        Args: { company_uuid: string; user_uuid?: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

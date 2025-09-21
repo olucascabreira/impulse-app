@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import CashFlow from "./pages/CashFlow";
 import Transactions from "./pages/Transactions";
+import Companies from "./pages/Companies";
 
 const queryClient = new QueryClient();
 
@@ -23,7 +24,7 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/" element={<AppLayout><Index /></AppLayout>} />
-            <Route path="/empresas" element={<AppLayout><div>Empresas - Em desenvolvimento</div></AppLayout>} />
+            <Route path="/empresas" element={<AppLayout><Companies /></AppLayout>} />
             <Route path="/fluxo-caixa" element={<AppLayout><CashFlow /></AppLayout>} />
             <Route path="/contas-bancarias" element={<AppLayout><div>Contas Bancárias - Em desenvolvimento</div></AppLayout>} />
             <Route path="/lancamentos" element={<AppLayout><Transactions /></AppLayout>} />
