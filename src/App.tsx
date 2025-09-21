@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import CashFlow from "./pages/CashFlow";
 import Transactions from "./pages/Transactions";
 import Companies from "./pages/Companies";
+import BankAccounts from "./pages/BankAccounts";
 
 const queryClient = new QueryClient();
 
@@ -26,7 +27,7 @@ const App = () => (
             <Route path="/" element={<AppLayout><Index /></AppLayout>} />
             <Route path="/empresas" element={<AppLayout><Companies /></AppLayout>} />
             <Route path="/fluxo-caixa" element={<AppLayout><CashFlow /></AppLayout>} />
-            <Route path="/contas-bancarias" element={<AppLayout><div>Contas Bancárias - Em desenvolvimento</div></AppLayout>} />
+            <Route path="/contas-bancarias" element={<AppLayout><BankAccounts /></AppLayout>} />
             <Route path="/lancamentos" element={<AppLayout><Transactions /></AppLayout>} />
             <Route path="/contas-pagar" element={<AppLayout><div>Contas a Pagar - Em desenvolvimento</div></AppLayout>} />
             <Route path="/contas-receber" element={<AppLayout><div>Contas a Receber - Em desenvolvimento</div></AppLayout>} />
