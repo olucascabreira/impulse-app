@@ -14,6 +14,7 @@ import Companies from "./pages/Companies";
 import BankAccounts from "./pages/BankAccounts";
 import ChartAccounts from "./pages/ChartAccounts";
 import Reports from "./pages/Reports";
+import Contacts from "./pages/Contacts";
 
 const queryClient = new QueryClient();
 
@@ -33,7 +34,7 @@ const App = () => (
             <Route path="/lancamentos" element={<AppLayout><Transactions /></AppLayout>} />
             <Route path="/contas-pagar" element={<AppLayout><div>Contas a Pagar - Em desenvolvimento</div></AppLayout>} />
             <Route path="/contas-receber" element={<AppLayout><div>Contas a Receber - Em desenvolvimento</div></AppLayout>} />
-            <Route path="/contatos" element={<AppLayout><div>Contatos - Em desenvolvimento</div></AppLayout>} />
+            <Route path="/contatos" element={<AppLayout><Contacts /></AppLayout>} />
             <Route path="/plano-contas" element={<AppLayout><ChartAccounts /></AppLayout>} />
             <Route path="/relatorios" element={<AppLayout><Reports /></AppLayout>} />
             <Route path="/configuracoes" element={<AppLayout><div>Configurações - Em desenvolvimento</div></AppLayout>} />

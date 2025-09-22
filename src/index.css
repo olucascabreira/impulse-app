@@ -112,6 +112,7 @@ All colors MUST be HSL.
   }
 
   body {
+    font-family: 'Poppins', sans-serif;
     @apply bg-background text-foreground;
   }
 }
