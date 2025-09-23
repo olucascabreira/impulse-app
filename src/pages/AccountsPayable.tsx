@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, Calendar, CheckCircle, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, Calendar, CheckCircle, X, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,7 +19,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 
-export default function Transactions() {
+export default function AccountsPayable() {
   const { companies } = useCompanies();
   const currentCompany = companies[0];
   
@@ -36,22 +36,27 @@ export default function Transactions() {
   const { toast } = useToast();
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isAddingTransaction, setIsAddingTransaction] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [viewingTransaction, setViewingTransaction] = useState<any>(null);
 
+  // Filter transactions to show only "saida" (outgoing) transactions
+  const accountsPayableTransactions = useMemo(() => {
+    return transactions.filter(transaction => 
+      transaction.transaction_type === 'saida'
+    );
+  }, [transactions]);
+
   const filteredTransactions = useMemo(() => {
-    return transactions.filter(transaction => {
+    return accountsPayableTransactions.filter(transaction => {
       const matchesSearch = transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           transaction.contacts?.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesType = typeFilter === 'all' || transaction.transaction_type === typeFilter;
       const matchesStatus = statusFilter === 'all' || transaction.status === statusFilter;
       
-      return matchesSearch && matchesType && matchesStatus;
+      return matchesSearch && matchesStatus;
     });
-  }, [transactions, searchTerm, typeFilter, statusFilter]);
+  }, [accountsPayableTransactions, searchTerm, statusFilter]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -64,7 +69,6 @@ export default function Transactions() {
     const statusConfig = {
       pendente: { label: 'Pendente', variant: 'secondary' as const },
       pago: { label: 'Pago', variant: 'default' as const },
-      recebido: { label: 'Recebido', variant: 'default' as const },
       cancelado: { label: 'Cancelado', variant: 'destructive' as const }
     };
     
@@ -76,8 +80,8 @@ export default function Transactions() {
     const result = await deleteTransaction(id);
     if (!result.error) {
       toast({
-        title: "Transação deletada",
-        description: "A transação foi removida com sucesso.",
+        title: "Conta deletada",
+        description: "A conta a pagar foi removida com sucesso.",
       });
     }
   };
@@ -87,7 +91,7 @@ export default function Transactions() {
     if (!result.error) {
       toast({
         title: "Status atualizado",
-        description: "Transação marcada como paga.",
+        description: "Conta marcada como paga.",
       });
     }
   };
@@ -111,32 +115,90 @@ export default function Transactions() {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Lançamentos</h1>
-          <p className="text-muted-foreground mt-2">
-            {currentCompany ? `Visão geral de ${currentCompany.name}` : 'Visão geral do seu sistema financeiro'}
-          </p>
+          <h1 className="text-2xl font-bold">Contas a Pagar</h1>
+          <p className="text-muted-foreground">Gerencie suas despesas e contas a pagar</p>
         </div>
         
         <Dialog open={isAddingTransaction} onOpenChange={setIsAddingTransaction}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              Novo Lançamento
+              Nova Conta
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Novo Lançamento</DialogTitle>
+              <DialogTitle>Nova Conta a Pagar</DialogTitle>
             </DialogHeader>
             <TransactionForm
               companyId={currentCompany?.id}
               bankAccounts={bankAccounts}
               chartAccounts={chartAccounts}
               contacts={contacts}
+              defaultType="saida"
               onSuccess={() => setIsAddingTransaction(false)}
             />
           </DialogContent>
         </Dialog>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Pendente</p>
+                <p className="text-2xl font-bold text-red-600">
+                  {formatCurrency(
+                    accountsPayableTransactions
+                      .filter(t => t.status === 'pendente')
+                      .reduce((sum, t) => sum + Number(t.amount), 0)
+                  )}
+                </p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
+                <Calendar className="h-6 w-6 text-red-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Pago</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(
+                    accountsPayableTransactions
+                      .filter(t => t.status === 'pago')
+                      .reduce((sum, t) => sum + Number(t.amount), 0)
+                  )}
+                </p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total de Contas</p>
+                <p className="text-2xl font-bold">
+                  {accountsPayableTransactions.length}
+                </p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                <Filter className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -155,18 +217,6 @@ export default function Transactions() {
               </div>
             </div>
             
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                <SelectItem value="entrada">Entradas</SelectItem>
-                <SelectItem value="saida">Saídas</SelectItem>
-                <SelectItem value="transferencia">Transferências</SelectItem>
-              </SelectContent>
-            </Select>
-
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Status" />
@@ -175,7 +225,6 @@ export default function Transactions() {
                 <SelectItem value="all">Todos os status</SelectItem>
                 <SelectItem value="pendente">Pendente</SelectItem>
                 <SelectItem value="pago">Pago</SelectItem>
-                <SelectItem value="recebido">Recebido</SelectItem>
                 <SelectItem value="cancelado">Cancelado</SelectItem>
               </SelectContent>
             </Select>
@@ -186,7 +235,7 @@ export default function Transactions() {
       {/* Transactions Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Lançamentos ({filteredTransactions.length})</CardTitle>
+          <CardTitle>Lista de Contas a Pagar ({filteredTransactions.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {filteredTransactions.length === 0 ? (
@@ -194,16 +243,16 @@ export default function Transactions() {
               <div className="mx-auto w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
                 <Calendar className="h-12 w-12 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-medium mb-2">Nenhum lançamento encontrado</h3>
+              <h3 className="text-lg font-medium mb-2">Nenhuma conta encontrada</h3>
               <p className="text-muted-foreground mb-4">
-                {transactions.length === 0 
-                  ? "Comece adicionando seu primeiro lançamento financeiro."
+                {accountsPayableTransactions.length === 0 
+                  ? "Comece adicionando sua primeira conta a pagar."
                   : "Tente ajustar os filtros para ver mais resultados."
                 }
               </p>
               <Button onClick={() => setIsAddingTransaction(true)}>
                 <Plus className="mr-2 h-4 w-4" />
-                Adicionar Lançamento
+                Adicionar Conta
               </Button>
             </div>
           ) : (
@@ -212,7 +261,6 @@ export default function Transactions() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Data</TableHead>
-                    <TableHead>Tipo</TableHead>
                     <TableHead>Descrição</TableHead>
                     <TableHead>Contato</TableHead>
                     <TableHead>Conta</TableHead>
@@ -228,23 +276,11 @@ export default function Transactions() {
                       <TableCell>
                         {format(new Date(transaction.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          transaction.transaction_type === 'entrada' ? 'default' : 
-                          transaction.transaction_type === 'transferencia' ? 'outline' : 'secondary'
-                        }>
-                          {transaction.transaction_type === 'entrada' ? 'Entrada' : 
-                           transaction.transaction_type === 'transferencia' ? 'Transferência' : 'Saída'}
-                        </Badge>
-                      </TableCell>
                       <TableCell className="font-medium">{transaction.description}</TableCell>
                       <TableCell>{transaction.contacts?.name || '-'}</TableCell>
                       <TableCell>{transaction.chart_accounts?.nome || '-'}</TableCell>
                       <TableCell>
-                        <span className={
-                          transaction.transaction_type === 'entrada' ? 'text-green-600 font-medium' : 
-                          transaction.transaction_type === 'transferencia' ? 'text-blue-600 font-medium' : 'text-red-600 font-medium'
-                        }>
+                        <span className="text-red-600 font-medium">
                           {formatCurrency(Number(transaction.amount))}
                         </span>
                       </TableCell>
@@ -287,7 +323,7 @@ export default function Transactions() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita.
+                                  Tem certeza que deseja excluir esta conta a pagar? Esta ação não pode ser desfeita.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -313,7 +349,7 @@ export default function Transactions() {
       <Dialog open={!!editingTransaction} onOpenChange={() => setEditingTransaction(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Editar Lançamento</DialogTitle>
+            <DialogTitle>Editar Conta a Pagar</DialogTitle>
           </DialogHeader>
           {editingTransaction && (
             <TransactionEditForm
@@ -331,18 +367,11 @@ export default function Transactions() {
       <Dialog open={!!viewingTransaction} onOpenChange={() => setViewingTransaction(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Detalhes do Lançamento</DialogTitle>
+            <DialogTitle>Detalhes da Conta a Pagar</DialogTitle>
           </DialogHeader>
           {viewingTransaction && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Tipo</label>
-                  <p className="font-medium">
-                    {viewingTransaction.transaction_type === 'entrada' ? 'Entrada' : 
-                     viewingTransaction.transaction_type === 'transferencia' ? 'Transferência' : 'Saída'}
-                  </p>
-                </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Status</label>
                   <div className="mt-1">
@@ -359,10 +388,7 @@ export default function Transactions() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Valor</label>
-                  <p className={`font-medium text-lg ${
-                    viewingTransaction.transaction_type === 'entrada' ? 'text-green-600' : 
-                    viewingTransaction.transaction_type === 'transferencia' ? 'text-blue-600' : 'text-red-600'
-                  }`}>
+                  <p className="font-medium text-lg text-red-600">
                     {formatCurrency(Number(viewingTransaction.amount))}
                   </p>
                 </div>

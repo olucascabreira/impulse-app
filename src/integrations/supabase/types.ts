@@ -17,6 +17,7 @@ export type Database = {
       bank_accounts: {
         Row: {
           account_number: string | null
+          account_type: string | null
           agency: string | null
           bank_name: string | null
           company_id: string
@@ -28,6 +29,7 @@ export type Database = {
         }
         Insert: {
           account_number?: string | null
+          account_type?: string | null
           agency?: string | null
           bank_name?: string | null
           company_id: string
@@ -39,6 +41,7 @@ export type Database = {
         }
         Update: {
           account_number?: string | null
+          account_type?: string | null
           agency?: string | null
           bank_name?: string | null
           company_id?: string
@@ -108,28 +111,58 @@ export type Database = {
       }
       companies: {
         Row: {
+          address: string | null
+          city: string | null
           cnpj: string | null
+          country: string | null
           created_at: string
+          email: string | null
           id: string
+          industry: string | null
+          logo_url: string | null
           name: string
+          phone: string | null
+          state: string | null
           updated_at: string
           user_admin_id: string
+          website: string | null
+          zipcode: string | null
         }
         Insert: {
+          address?: string | null
+          city?: string | null
           cnpj?: string | null
+          country?: string | null
           created_at?: string
+          email?: string | null
           id?: string
+          industry?: string | null
+          logo_url?: string | null
           name: string
+          phone?: string | null
+          state?: string | null
           updated_at?: string
           user_admin_id: string
+          website?: string | null
+          zipcode?: string | null
         }
         Update: {
+          address?: string | null
+          city?: string | null
           cnpj?: string | null
+          country?: string | null
           created_at?: string
+          email?: string | null
           id?: string
+          industry?: string | null
+          logo_url?: string | null
           name?: string
+          phone?: string | null
+          state?: string | null
           updated_at?: string
           user_admin_id?: string
+          website?: string | null
+          zipcode?: string | null
         }
         Relationships: []
       }
@@ -215,6 +248,8 @@ export type Database = {
           id: string
           nome: string
           perfil: string
+          telefone: string | null
+          cargo: string | null
           updated_at: string
           user_id: string
         }
@@ -223,6 +258,8 @@ export type Database = {
           id?: string
           nome: string
           perfil: string
+          telefone?: string | null
+          cargo?: string | null
           updated_at?: string
           user_id: string
         }
@@ -231,6 +268,8 @@ export type Database = {
           id?: string
           nome?: string
           perfil?: string
+          telefone?: string | null
+          cargo?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -245,6 +284,7 @@ export type Database = {
           contact_id: string | null
           created_at: string
           description: string
+          destination_account_id: string | null
           due_date: string | null
           id: string
           payment_date: string | null
@@ -260,6 +300,7 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           description: string
+          destination_account_id?: string | null
           due_date?: string | null
           id?: string
           payment_date?: string | null
@@ -275,6 +316,7 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           description?: string
+          destination_account_id?: string | null
           due_date?: string | null
           id?: string
           payment_date?: string | null

@@ -8,6 +8,8 @@ export interface Profile {
   user_id: string;
   nome: string;
   perfil: 'admin' | 'financeiro' | 'visualizacao';
+  telefone?: string | null;
+  cargo?: string | null;
 }
 
 export function useAuth() {
@@ -127,6 +129,37 @@ export function useAuth() {
     return { error };
   };
 
+  const updateProfile = async (updates: Partial<Profile>) => {
+    if (!profile?.id) return { error: new Error('Perfil não encontrado') };
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', profile.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setProfile(data as Profile);
+      
+      toast({
+        title: "Perfil atualizado",
+        description: "Suas informações foram atualizadas com sucesso.",
+      });
+
+      return { data };
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar perfil",
+        description: error.message || "Ocorreu um erro ao atualizar suas informações.",
+        variant: "destructive",
+      });
+      return { error };
+    }
+  };
+
   return {
     user,
     session,
@@ -135,5 +168,6 @@ export function useAuth() {
     signIn,
     signUp,
     signOut,
+    updateProfile,
   };
 }

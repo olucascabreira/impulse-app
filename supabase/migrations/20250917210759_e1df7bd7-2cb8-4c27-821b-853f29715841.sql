@@ -6,46 +6,48 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $
 BEGIN
     NEW.updated_at = now();
     RETURN NEW;
 END;
-$$;
+$;
 
 CREATE OR REPLACE FUNCTION public.update_bank_account_balance()
 RETURNS TRIGGER 
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $
 BEGIN
-    -- Update bank account balance when transaction is paid
-    IF NEW.status = 'pago' AND (OLD IS NULL OR OLD.status != 'pago') AND NEW.bank_account_id IS NOT NULL THEN
-        IF NEW.transaction_type = 'entrada' THEN
-            UPDATE public.bank_accounts 
-            SET current_balance = current_balance + NEW.amount
-            WHERE id = NEW.bank_account_id;
-        ELSE
-            UPDATE public.bank_accounts 
-            SET current_balance = current_balance - NEW.amount
-            WHERE id = NEW.bank_account_id;
-        END IF;
+    -- For entrada transactions, 'recebido' means money received
+    IF NEW.transaction_type = 'entrada' AND NEW.status = 'recebido' AND (OLD IS NULL OR OLD.status != 'recebido') AND NEW.bank_account_id IS NOT NULL THEN
+        UPDATE public.bank_accounts 
+        SET current_balance = current_balance + NEW.amount
+        WHERE id = NEW.bank_account_id;
     END IF;
     
-    -- Revert balance if transaction is cancelled or unpaid
-    IF OLD IS NOT NULL AND OLD.status = 'pago' AND NEW.status != 'pago' AND NEW.bank_account_id IS NOT NULL THEN
-        IF NEW.transaction_type = 'entrada' THEN
-            UPDATE public.bank_accounts 
-            SET current_balance = current_balance - NEW.amount
-            WHERE id = NEW.bank_account_id;
-        ELSE
-            UPDATE public.bank_accounts 
-            SET current_balance = current_balance + NEW.amount
-            WHERE id = NEW.bank_account_id;
-        END IF;
+    -- For saida transactions, 'pago' means money paid
+    IF NEW.transaction_type = 'saida' AND NEW.status = 'pago' AND (OLD IS NULL OR OLD.status != 'pago') AND NEW.bank_account_id IS NOT NULL THEN
+        UPDATE public.bank_accounts 
+        SET current_balance = current_balance - NEW.amount
+        WHERE id = NEW.bank_account_id;
+    END IF;
+    
+    -- Revert balance when entrada transaction is no longer received
+    IF OLD IS NOT NULL AND OLD.transaction_type = 'entrada' AND OLD.status = 'recebido' AND NEW.status != 'recebido' AND NEW.bank_account_id IS NOT NULL THEN
+        UPDATE public.bank_accounts 
+        SET current_balance = current_balance - OLD.amount
+        WHERE id = NEW.bank_account_id;
+    END IF;
+    
+    -- Revert balance when saida transaction is no longer paid
+    IF OLD IS NOT NULL AND OLD.transaction_type = 'saida' AND OLD.status = 'pago' AND NEW.status != 'pago' AND NEW.bank_account_id IS NOT NULL THEN
+        UPDATE public.bank_accounts 
+        SET current_balance = current_balance + OLD.amount
+        WHERE id = NEW.bank_account_id;
     END IF;
     
     RETURN NEW;
 END;
-$$;
+$;

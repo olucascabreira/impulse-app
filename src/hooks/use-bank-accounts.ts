@@ -10,6 +10,7 @@ export interface BankAccount {
   account_number?: string;
   initial_balance: number;
   current_balance: number;
+  account_type?: string;
   created_at: string;
   updated_at: string;
 }

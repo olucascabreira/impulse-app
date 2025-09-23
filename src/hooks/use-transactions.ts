@@ -8,18 +8,21 @@ export interface Transaction {
   chart_account_id?: string;
   bank_account_id?: string;
   contact_id?: string;
-  transaction_type: 'entrada' | 'saida';
+  transaction_type: 'entrada' | 'saida' | 'transferencia';
   description: string;
   amount: number;
   due_date?: string;
   payment_date?: string;
-  status: 'pendente' | 'pago' | 'recebido' | 'cancelado';
+  status: 'pendente' | 'pago' | 'atrasado' | 'transferido';
   created_at: string;
   updated_at: string;
+  // For transfers, we might need a destination account
+  destination_account_id?: string;
   // Relations
   chart_accounts?: { nome: string };
   bank_accounts?: { bank_name?: string; account_number?: string };
   contacts?: { name: string };
+  destination_account?: { bank_name?: string; account_number?: string };
 }
 
 export function useTransactions(companyId?: string) {
@@ -37,12 +40,13 @@ export function useTransactions(companyId?: string) {
     if (!companyId) return;
 
     try {
+      // Use explicit relationship names to avoid ambiguity
       const { data, error } = await supabase
         .from('transactions')
         .select(`
           *,
           chart_accounts(nome),
-          bank_accounts(bank_name, account_number),
+          bank_accounts!bank_account_id(bank_name, account_number),
           contacts(name)
         `)
         .eq('company_id', companyId)
@@ -65,7 +69,7 @@ export function useTransactions(companyId?: string) {
     }
   };
 
-  const createTransaction = async (transactionData: Omit<Transaction, 'id' | 'company_id' | 'created_at' | 'updated_at' | 'chart_accounts' | 'bank_accounts' | 'contacts'>) => {
+  const createTransaction = async (transactionData: Omit<Transaction, 'id' | 'company_id' | 'created_at' | 'updated_at' | 'chart_accounts' | 'bank_accounts' | 'contacts' | 'destination_account'>) => {
     if (!companyId) return { error: new Error('Company ID required') };
 
     try {
@@ -78,7 +82,7 @@ export function useTransactions(companyId?: string) {
         .select(`
           *,
           chart_accounts(nome),
-          bank_accounts(bank_name, account_number),
+          bank_accounts!bank_account_id(bank_name, account_number),
           contacts(name)
         `)
         .single();
@@ -114,7 +118,7 @@ export function useTransactions(companyId?: string) {
         .select(`
           *,
           chart_accounts(nome),
-          bank_accounts(bank_name, account_number),
+          bank_accounts!bank_account_id(bank_name, account_number),
           contacts(name)
         `)
         .single();
@@ -131,7 +135,7 @@ export function useTransactions(companyId?: string) {
       setTransactions(prev => prev.map(trans => trans.id === id ? data as Transaction : trans));
       toast({
         title: "Lançamento atualizado!",
-        description: "Lançamento atualizado com sucesso.",
+        description: "Dados do lançamento atualizados com sucesso.",
       });
 
       return { data };

@@ -15,6 +15,9 @@ import BankAccounts from "./pages/BankAccounts";
 import ChartAccounts from "./pages/ChartAccounts";
 import Reports from "./pages/Reports";
 import Contacts from "./pages/Contacts";
+import AccountsPayable from "./pages/AccountsPayable";
+import AccountsReceivable from "./pages/AccountsReceivable";
+import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -32,12 +35,12 @@ const App = () => (
             <Route path="/fluxo-caixa" element={<AppLayout><CashFlow /></AppLayout>} />
             <Route path="/contas-bancarias" element={<AppLayout><BankAccounts /></AppLayout>} />
             <Route path="/lancamentos" element={<AppLayout><Transactions /></AppLayout>} />
-            <Route path="/contas-pagar" element={<AppLayout><div>Contas a Pagar - Em desenvolvimento</div></AppLayout>} />
-            <Route path="/contas-receber" element={<AppLayout><div>Contas a Receber - Em desenvolvimento</div></AppLayout>} />
+            <Route path="/contas-pagar" element={<AppLayout><AccountsPayable /></AppLayout>} />
+            <Route path="/contas-receber" element={<AppLayout><AccountsReceivable /></AppLayout>} />
             <Route path="/contatos" element={<AppLayout><Contacts /></AppLayout>} />
             <Route path="/plano-contas" element={<AppLayout><ChartAccounts /></AppLayout>} />
             <Route path="/relatorios" element={<AppLayout><Reports /></AppLayout>} />
-            <Route path="/configuracoes" element={<AppLayout><div>Configurações - Em desenvolvimento</div></AppLayout>} />
+            <Route path="/configuracoes" element={<AppLayout><Settings /></AppLayout>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -5,6 +5,7 @@ import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useBankAccounts, BankAccount } from '@/hooks/use-bank-accounts';
 
 const bankAccountSchema = z.object({
@@ -12,6 +13,7 @@ const bankAccountSchema = z.object({
   agency: z.string().optional(),
   account_number: z.string().optional(),
   initial_balance: z.string().min(1, 'Saldo inicial é obrigatório'),
+  account_type: z.string().optional(),
 });
 
 type BankAccountFormData = z.infer<typeof bankAccountSchema>;
@@ -28,6 +30,8 @@ export function BankAccountEditForm({ account, onSuccess }: BankAccountEditFormP
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
+    setValue,
+    watch,
   } = useForm<BankAccountFormData>({
     resolver: zodResolver(bankAccountSchema),
     defaultValues: {
@@ -35,8 +39,11 @@ export function BankAccountEditForm({ account, onSuccess }: BankAccountEditFormP
       agency: account.agency || '',
       account_number: account.account_number || '',
       initial_balance: account.initial_balance.toString(),
+      account_type: account.account_type || 'checking',
     },
   });
+
+  const accountType = watch('account_type');
 
   const onSubmit = async (data: BankAccountFormData) => {
     const updateData = {
@@ -44,6 +51,7 @@ export function BankAccountEditForm({ account, onSuccess }: BankAccountEditFormP
       agency: data.agency || null,
       account_number: data.account_number || null,
       initial_balance: parseFloat(data.initial_balance),
+      account_type: data.account_type || null,
     };
 
     const result = await updateBankAccount(account.id, updateData);
@@ -52,6 +60,15 @@ export function BankAccountEditForm({ account, onSuccess }: BankAccountEditFormP
       onSuccess?.();
     }
   };
+
+  const accountTypes = [
+    { value: 'checking', label: 'Conta Corrente' },
+    { value: 'savings', label: 'Conta Poupança' },
+    { value: 'credit_card', label: 'Cartão de Crédito' },
+    { value: 'investment', label: 'Conta de Investimento' },
+    { value: 'reserve', label: 'Conta de Reserva' },
+    { value: 'other', label: 'Outro' },
+  ];
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -64,6 +81,28 @@ export function BankAccountEditForm({ account, onSuccess }: BankAccountEditFormP
         />
         {errors.bank_name && (
           <p className="text-sm text-destructive">{errors.bank_name.message}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="account_type">Tipo de Conta</Label>
+        <Select 
+          value={accountType} 
+          onValueChange={(value) => setValue('account_type', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Selecione o tipo de conta" />
+          </SelectTrigger>
+          <SelectContent>
+            {accountTypes.map((type) => (
+              <SelectItem key={type.value} value={type.value}>
+                {type.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {errors.account_type && (
+          <p className="text-sm text-destructive">{errors.account_type.message}</p>
         )}
       </div>
 

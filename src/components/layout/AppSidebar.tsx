@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   LayoutDashboard, 
   Building2, 
@@ -27,6 +27,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanies } from "@/hooks/use-companies";
 import { Button } from "@/components/ui/button";
 
 const menuItems = [
@@ -45,6 +46,7 @@ const menuItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const { signOut, profile } = useAuth();
+  const { currentCompany } = useCompanies();
   const location = useLocation();
   const currentPath = location.pathname;
 
@@ -64,11 +66,28 @@ export function AppSidebar() {
     >
       <SidebarContent>
         <div className="p-4">
-          <h2 className={`font-bold text-xl text-sidebar-primary ${isCollapsed ? 'hidden' : 'block'}`}>
-            Impulse Financeiro
-          </h2>
-          {isCollapsed && (
-            <div className="text-sidebar-primary text-xl font-bold">IF</div>
+          {currentCompany?.logo_url ? (
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : ''}`}>
+              <img 
+                src={currentCompany.logo_url} 
+                alt="Logo da Empresa" 
+                className={`object-contain ${isCollapsed ? 'h-8 w-8' : 'h-10 w-10'}`}
+              />
+              {!isCollapsed && (
+                <span className="ml-3 font-bold text-xl text-sidebar-primary truncate">
+                  {currentCompany.name}
+                </span>
+              )}
+            </div>
+          ) : (
+            <>
+              <h2 className={`font-bold text-xl text-sidebar-primary ${isCollapsed ? 'hidden' : 'block'}`}>
+                Impulse Financeiro
+              </h2>
+              {isCollapsed && (
+                <div className="text-sidebar-primary text-xl font-bold">IF</div>
+              )}
+            </>
           )}
         </div>
 
