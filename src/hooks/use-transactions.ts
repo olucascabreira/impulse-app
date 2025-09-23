@@ -25,7 +25,7 @@ export interface Transaction {
   destination_account?: { bank_name?: string; account_number?: string };
 }
 
-export function useTransactions(companyId?: string) {
+export function useTransactions(companyId?: string, startDate?: Date, endDate?: Date) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -34,14 +34,13 @@ export function useTransactions(companyId?: string) {
     if (companyId) {
       fetchTransactions();
     }
-  }, [companyId]);
+  }, [companyId, startDate, endDate]);
 
   const fetchTransactions = async () => {
     if (!companyId) return;
 
     try {
-      // Use explicit relationship names to avoid ambiguity
-      const { data, error } = await supabase
+      let query = supabase
         .from('transactions')
         .select(`
           *,
@@ -49,8 +48,20 @@ export function useTransactions(companyId?: string) {
           bank_accounts!bank_account_id(bank_name, account_number),
           contacts(name)
         `)
-        .eq('company_id', companyId)
-        .order('created_at', { ascending: false });
+        .eq('company_id', companyId);
+        
+      // Add date range filtering if provided
+      if (startDate && endDate) {
+        // Format dates to ISO string for comparison
+        const startISO = startDate.toISOString();
+        const endISO = new Date(endDate);
+        endISO.setDate(endDate.getDate() + 1); // Include the end date
+        const endISOStr = endISO.toISOString();
+        
+        query = query.gte('created_at', startISO).lt('created_at', endISOStr);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching transactions:', error);
@@ -66,6 +77,44 @@ export function useTransactions(companyId?: string) {
       console.error('Error in fetchTransactions:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Function to fetch transactions for a specific date range (used for charts)
+  const fetchTransactionsForRange = async (start: Date, end: Date) => {
+    if (!companyId) return [];
+
+    try {
+      const endWithDay = new Date(end);
+      endWithDay.setDate(end.getDate() + 1); // Include the end date
+      
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          chart_accounts(nome),
+          bank_accounts!bank_account_id(bank_name, account_number),
+          contacts(name)
+        `)
+        .eq('company_id', companyId)
+        .gte('created_at', start.toISOString())
+        .lt('created_at', endWithDay.toISOString())
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching transactions for range:', error);
+        toast({
+          title: "Erro ao carregar lançamentos",
+          description: error.message,
+          variant: "destructive",
+        });
+        return [];
+      }
+      
+      return (data as Transaction[]) || [];
+    } catch (error) {
+      console.error('Error in fetchTransactionsForRange:', error);
+      return [];
     }
   };
 

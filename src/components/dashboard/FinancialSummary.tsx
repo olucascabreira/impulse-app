@@ -11,8 +11,10 @@ interface FinancialSummaryProps {
 export function FinancialSummary({ transactions, selectedDate }: FinancialSummaryProps) {
   // Calculate receivables data (entradas)
   const receivablesData = useMemo(() => {
+    // Filter transactions for the selected month and year using due_date
     const currentMonthTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.created_at);
+      if (!t.due_date) return false; // Skip if no due_date
+      const transactionDate = new Date(t.due_date);
       return (
         transactionDate.getMonth() === selectedDate.getMonth() &&
         transactionDate.getFullYear() === selectedDate.getFullYear() &&
@@ -42,8 +44,10 @@ export function FinancialSummary({ transactions, selectedDate }: FinancialSummar
 
   // Calculate payables data (saídas)
   const payablesData = useMemo(() => {
+    // Filter transactions for the selected month and year using due_date
     const currentMonthTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.created_at);
+      if (!t.due_date) return false; // Skip if no due_date
+      const transactionDate = new Date(t.due_date);
       return (
         transactionDate.getMonth() === selectedDate.getMonth() &&
         transactionDate.getFullYear() === selectedDate.getFullYear() &&

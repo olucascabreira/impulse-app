@@ -24,7 +24,10 @@ const Index = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const { currentCompany } = useCompanies();
-  const { transactions } = useTransactions(currentCompany?.id);
+  
+  // Fetch all transactions for the company (without date filtering)
+  const { transactions: allTransactions } = useTransactions(currentCompany?.id);
+  
   const { bankAccounts } = useBankAccounts(currentCompany?.id);
 
   // Initialize with all accounts selected
@@ -48,11 +51,12 @@ const Index = () => {
     );
   };
 
-  // Calculate statistics for the selected month
+  // Calculate statistics for the selected month using due_date
   const stats = useMemo(() => {
-    // Filter transactions for the selected month and year
-    const monthlyTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.created_at);
+    // Filter transactions for the selected month and year using due_date
+    const monthlyTransactions = allTransactions.filter(t => {
+      if (!t.due_date) return false; // Skip if no due_date
+      const transactionDate = new Date(t.due_date);
       return (
         transactionDate.getMonth() === selectedDate.getMonth() &&
         transactionDate.getFullYear() === selectedDate.getFullYear()
@@ -81,18 +85,20 @@ const Index = () => {
       monthlyExpenses,
       totalCashBalance,
     };
-  }, [transactions, bankAccounts, selectedDate, selectedAccountIds]);
+  }, [allTransactions, bankAccounts, selectedDate, selectedAccountIds]);
 
-  // Prepare cash flow data for the chart (last 6 months from selected date)
+  // Prepare cash flow data for the chart (last 6 months from selected date) using due_date
   const cashFlowData = useMemo(() => {
-    // Group transactions by month for the last 6 months
+    // Group transactions by month for the last 6 months using due_date
     const data = [];
     
     for (let i = 5; i >= 0; i--) {
       const date = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - i, 1);
       
-      const monthTransactions = transactions.filter(t => {
-        const transactionDate = new Date(t.created_at);
+      // Filter transactions for the specific month using due_date
+      const monthTransactions = allTransactions.filter(t => {
+        if (!t.due_date) return false; // Skip if no due_date
+        const transactionDate = new Date(t.due_date);
         return (
           transactionDate.getFullYear() === date.getFullYear() &&
           transactionDate.getMonth() === date.getMonth()
@@ -127,7 +133,7 @@ const Index = () => {
     }
     
     return data;
-  }, [transactions, selectedDate]);
+  }, [allTransactions, selectedDate]);
 
   // Calculate total balance across all accounts (this doesn't change based on date)
   const totalBalance = useMemo(() => {
@@ -138,10 +144,11 @@ const Index = () => {
     return selectedAccounts.reduce((sum, account) => sum + account.current_balance, 0);
   }, [bankAccounts, selectedAccountIds]);
 
-  // Filter recent transactions for the selected month
+  // Filter recent transactions for the selected month using due_date
   const recentTransactions = useMemo(() => {
-    const monthlyTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.created_at);
+    const monthlyTransactions = allTransactions.filter(t => {
+      if (!t.due_date) return false; // Skip if no due_date
+      const transactionDate = new Date(t.due_date);
       return (
         transactionDate.getMonth() === selectedDate.getMonth() &&
         transactionDate.getFullYear() === selectedDate.getFullYear()
@@ -149,7 +156,7 @@ const Index = () => {
     });
     
     return monthlyTransactions.slice(0, 3);
-  }, [transactions, selectedDate]);
+  }, [allTransactions, selectedDate]);
 
   // Format currency for chart tooltip
   const formatCurrency = (value: number) => {
@@ -181,7 +188,7 @@ const Index = () => {
       </div>
 
       {/* Financial Summary Section */}
-      <FinancialSummary transactions={transactions} selectedDate={selectedDate} />
+      <FinancialSummary transactions={allTransactions} selectedDate={selectedDate} />
 
       {/* Cards de Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
