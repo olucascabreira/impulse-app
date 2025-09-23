@@ -143,7 +143,7 @@ export function BankAccountEditForm({ account, onSuccess }: BankAccountEditFormP
           <p className="text-sm text-destructive">{errors.initial_balance.message}</p>
         )}
         <p className="text-xs text-muted-foreground">
-          Nota: O saldo atual será ajustado automaticamente com base nas transações
+          Nota: Alterar o saldo inicial ajustará automaticamente o saldo atual mantendo a consistência com as transações existentes
         </p>
       </div>
 

@@ -153,6 +153,9 @@ export function BankAccountForm({ companyId, onSuccess }: BankAccountFormProps) 
         {errors.initial_balance && (
           <p className="text-sm text-destructive">{errors.initial_balance.message}</p>
         )}
+        <p className="text-xs text-muted-foreground">
+          Nota: Este será o saldo inicial e o saldo atual da conta
+        </p>
       </div>
 
       <div className="flex gap-2 pt-4">

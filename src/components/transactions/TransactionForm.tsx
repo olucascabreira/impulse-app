@@ -24,6 +24,7 @@ const transactionSchema = z.object({
   contact_id: z.string().optional(),
   due_date: z.string().optional(),
   status: z.enum(['pendente', 'pago', 'atrasado', 'transferido']).default('pendente'),
+  payment_method: z.string().optional(),
 });
 
 type TransactionFormData = z.infer<typeof transactionSchema>;
@@ -53,6 +54,7 @@ export function TransactionForm({
     defaultValues: {
       transaction_type: defaultType,
       status: 'pendente',
+      payment_method: 'dinheiro', // Default payment method
     },
   });
 
@@ -96,6 +98,7 @@ export function TransactionForm({
       destination_account_id: data.transaction_type === 'transferencia' ? data.destination_account_id : undefined,
       contact_id: data.contact_id || undefined,
       due_date: data.due_date || undefined,
+      payment_method: data.payment_method || undefined,
     };
 
     const result = await createTransaction(transactionData);
@@ -122,6 +125,18 @@ export function TransactionForm({
       ];
     }
   };
+
+  // Payment method options
+  const paymentMethods = [
+    { value: 'dinheiro', label: 'Dinheiro' },
+    { value: 'cartao_credito', label: 'Cartão de Crédito' },
+    { value: 'cartao_debito', label: 'Cartão de Débito' },
+    { value: 'pix', label: 'PIX' },
+    { value: 'transferencia_bancaria', label: 'Transferência Bancária' },
+    { value: 'cheque', label: 'Cheque' },
+    { value: 'boleto', label: 'Boleto' },
+    { value: 'outro', label: 'Outro' },
+  ];
 
   return (
     <Form {...form}>
@@ -299,8 +314,33 @@ export function TransactionForm({
           </div>
         )}
 
-        {transactionType !== 'transferencia' && (
-          <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="payment_method"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Método de Pagamento</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o método de pagamento" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {paymentMethods.map((method) => (
+                      <SelectItem key={method.value} value={method.value}>
+                        {method.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {transactionType !== 'transferencia' && (
             <FormField
               control={form.control}
               name="contact_id"
@@ -325,7 +365,11 @@ export function TransactionForm({
                 </FormItem>
               )}
             />
+          )}
+        </div>
 
+        {transactionType !== 'transferencia' && (
+          <div className="grid grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="due_date"
@@ -342,33 +386,33 @@ export function TransactionForm({
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {getStatusOptions().map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
         )}
-
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {getStatusOptions().map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => form.reset()}>

@@ -14,6 +14,7 @@ export interface Transaction {
   due_date?: string;
   payment_date?: string;
   status: 'pendente' | 'pago' | 'atrasado' | 'transferido';
+  payment_method?: string;
   created_at: string;
   updated_at: string;
   // For transfers, we might need a destination account

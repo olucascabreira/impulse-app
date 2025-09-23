@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Filter, Calendar, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { Plus, Search, Filter, Calendar, TrendingUp, TrendingDown, DollarSign, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useTransactions } from '@/hooks/use-transactions';
 import { useBankAccounts } from '@/hooks/use-bank-accounts';
 import { useChartAccounts } from '@/hooks/use-chart-accounts';
@@ -15,6 +17,24 @@ import { useCompanies } from '@/hooks/use-companies';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+// Helper function to format payment method
+const formatPaymentMethod = (method: string | undefined) => {
+  if (!method) return '-';
+  
+  const paymentMethodMap: Record<string, string> = {
+    'dinheiro': 'Dinheiro',
+    'cartao_credito': 'Cartão de Crédito',
+    'cartao_debito': 'Cartão de Débito',
+    'pix': 'PIX',
+    'transferencia_bancaria': 'Transferência Bancária',
+    'cheque': 'Cheque',
+    'boleto': 'Boleto',
+    'outro': 'Outro'
+  };
+  
+  return paymentMethodMap[method] || method;
+};
 
 export default function CashFlow() {
   const { companies } = useCompanies();
@@ -29,6 +49,18 @@ export default function CashFlow() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isAddingTransaction, setIsAddingTransaction] = useState(false);
+
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState({
+    type: true,
+    description: true,
+    contact: true,
+    account: true,
+    payment_method: true,
+    value: true,
+    due_date: true,
+    status: true,
+  });
 
   // Calculate totals and filtered transactions
   const { filteredTransactions, totalRevenue, totalExpense, balance } = useMemo(() => {
@@ -219,8 +251,103 @@ export default function CashFlow() {
 
       {/* Transactions Table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Transações</CardTitle>
+          {/* Column Configuration Popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-4" align="end">
+              <div className="space-y-3">
+                <h3 className="font-medium">Configuração de Colunas</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="type"
+                      checked={columnVisibility.type}
+                      onCheckedChange={(checked) => setColumnVisibility(prev => ({...prev, type: Boolean(checked)}))}
+                    />
+                    <label htmlFor="type" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Tipo
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="description"
+                      checked={columnVisibility.description}
+                      onCheckedChange={(checked) => setColumnVisibility(prev => ({...prev, description: Boolean(checked)}))}
+                    />
+                    <label htmlFor="description" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Descrição
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="contact"
+                      checked={columnVisibility.contact}
+                      onCheckedChange={(checked) => setColumnVisibility(prev => ({...prev, contact: Boolean(checked)}))}
+                    />
+                    <label htmlFor="contact" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Contato
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="account"
+                      checked={columnVisibility.account}
+                      onCheckedChange={(checked) => setColumnVisibility(prev => ({...prev, account: Boolean(checked)}))}
+                    />
+                    <label htmlFor="account" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Conta
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="payment_method"
+                      checked={columnVisibility.payment_method}
+                      onCheckedChange={(checked) => setColumnVisibility(prev => ({...prev, payment_method: Boolean(checked)}))}
+                    />
+                    <label htmlFor="payment_method" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Método Pgto
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="value"
+                      checked={columnVisibility.value}
+                      onCheckedChange={(checked) => setColumnVisibility(prev => ({...prev, value: Boolean(checked)}))}
+                    />
+                    <label htmlFor="value" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Valor
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="due_date"
+                      checked={columnVisibility.due_date}
+                      onCheckedChange={(checked) => setColumnVisibility(prev => ({...prev, due_date: Boolean(checked)}))}
+                    />
+                    <label htmlFor="due_date" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Vencimento
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="status"
+                      checked={columnVisibility.status}
+                      onCheckedChange={(checked) => setColumnVisibility(prev => ({...prev, status: Boolean(checked)}))}
+                    />
+                    <label htmlFor="status" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Status
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </CardHeader>
         <CardContent>
           {filteredTransactions.length === 0 ? (
@@ -245,36 +372,54 @@ export default function CashFlow() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead>Contato</TableHead>
-                    <TableHead>Conta</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Vencimento</TableHead>
-                    <TableHead>Status</TableHead>
+                    {columnVisibility.type && <TableHead>Tipo</TableHead>}
+                    {columnVisibility.description && <TableHead>Descrição</TableHead>}
+                    {columnVisibility.contact && <TableHead>Contato</TableHead>}
+                    {columnVisibility.account && <TableHead>Conta</TableHead>}
+                    {columnVisibility.payment_method && <TableHead>Método Pgto</TableHead>}
+                    {columnVisibility.value && <TableHead>Valor</TableHead>}
+                    {columnVisibility.due_date && <TableHead>Vencimento</TableHead>}
+                    {columnVisibility.status && <TableHead>Status</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredTransactions.map((transaction) => (
                     <TableRow key={transaction.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getTransactionIcon(transaction.transaction_type)}
-                          <span className="capitalize">{transaction.transaction_type}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">{transaction.description}</TableCell>
-                      <TableCell>{transaction.contacts?.name || '-'}</TableCell>
-                      <TableCell>{transaction.chart_accounts?.nome || '-'}</TableCell>
-                      <TableCell>
-                        <span className={transaction.transaction_type === 'entrada' ? 'text-green-600' : 'text-red-600'}>
-                          {transaction.transaction_type === 'entrada' ? '+' : '-'}{formatCurrency(Number(transaction.amount))}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {transaction.due_date ? format(new Date(transaction.due_date), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(transaction.status)}</TableCell>
+                      {columnVisibility.type && (
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getTransactionIcon(transaction.transaction_type)}
+                            <span className="capitalize">{transaction.transaction_type}</span>
+                          </div>
+                        </TableCell>
+                      )}
+                      {columnVisibility.description && (
+                        <TableCell className="font-medium">{transaction.description}</TableCell>
+                      )}
+                      {columnVisibility.contact && (
+                        <TableCell>{transaction.contacts?.name || '-'}</TableCell>
+                      )}
+                      {columnVisibility.account && (
+                        <TableCell>{transaction.chart_accounts?.nome || '-'}</TableCell>
+                      )}
+                      {columnVisibility.payment_method && (
+                        <TableCell>{formatPaymentMethod(transaction.payment_method)}</TableCell>
+                      )}
+                      {columnVisibility.value && (
+                        <TableCell>
+                          <span className={transaction.transaction_type === 'entrada' ? 'text-green-600' : 'text-red-600'}>
+                            {transaction.transaction_type === 'entrada' ? '+' : '-'}{formatCurrency(Number(transaction.amount))}
+                          </span>
+                        </TableCell>
+                      )}
+                      {columnVisibility.due_date && (
+                        <TableCell>
+                          {transaction.due_date ? format(new Date(transaction.due_date), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                        </TableCell>
+                      )}
+                      {columnVisibility.status && (
+                        <TableCell>{getStatusBadge(transaction.status)}</TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

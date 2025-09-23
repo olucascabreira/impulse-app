@@ -91,9 +91,37 @@ export function useBankAccounts(companyId?: string) {
 
   const updateBankAccount = async (id: string, updates: Partial<BankAccount>) => {
     try {
+      // Get the current account data to calculate the difference in initial balance
+      const { data: currentAccount, error: fetchError } = await supabase
+        .from('bank_accounts')
+        .select('initial_balance, current_balance')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) {
+        toast({
+          title: "Erro ao atualizar conta bancária",
+          description: fetchError.message,
+          variant: "destructive",
+        });
+        return { error: fetchError };
+      }
+
+      // Calculate if initial_balance is being updated and adjust current_balance accordingly
+      const updateData = { ...updates };
+      
+      if (typeof updates.initial_balance !== 'undefined') {
+        const oldInitialBalance = currentAccount.initial_balance;
+        const newInitialBalance = updates.initial_balance as number;
+        const balanceDifference = newInitialBalance - oldInitialBalance;
+        
+        // Adjust current balance by the same amount to maintain consistency with existing transactions
+        updateData.current_balance = currentAccount.current_balance + balanceDifference;
+      }
+
       const { data, error } = await supabase
         .from('bank_accounts')
-        .update(updates)
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();

@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -12,7 +13,6 @@ import { BankAccount } from '@/hooks/use-bank-accounts';
 import { ChartAccount } from '@/hooks/use-chart-accounts';
 import { Contact } from '@/hooks/use-contacts';
 import { Transaction } from '@/hooks/use-transactions';
-import { useToast } from '@/hooks/use-toast';
 
 const transactionSchema = z.object({
   transaction_type: z.enum(['entrada', 'saida', 'transferencia']),
@@ -24,6 +24,7 @@ const transactionSchema = z.object({
   contact_id: z.string().optional(),
   due_date: z.string().optional(),
   status: z.enum(['pendente', 'pago', 'atrasado', 'transferido']),
+  payment_method: z.string().optional(),
 });
 
 type TransactionFormData = z.infer<typeof transactionSchema>;
@@ -44,7 +45,6 @@ export function TransactionEditForm({
   onSuccess
 }: TransactionEditFormProps) {
   const { updateTransaction } = useTransactions(transaction.company_id);
-  const { toast } = useToast();
 
   const form = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
@@ -58,6 +58,7 @@ export function TransactionEditForm({
       contact_id: transaction.contact_id || '',
       due_date: transaction.due_date || '',
       status: transaction.status,
+      payment_method: transaction.payment_method || '', // Add payment method default value
     },
   });
 
@@ -65,20 +66,11 @@ export function TransactionEditForm({
     // Validate transfer transactions
     if (data.transaction_type === 'transferencia') {
       if (!data.bank_account_id || !data.destination_account_id) {
-        toast({
-          title: "Erro",
-          description: "Para transferências, selecione a conta de origem e destino",
-          variant: "destructive",
-        });
+        alert('Para transferências, selecione a conta de origem e destino');
         return;
       }
-      
       if (data.bank_account_id === data.destination_account_id) {
-        toast({
-          title: "Erro",
-          description: "A conta de origem e destino não podem ser iguais",
-          variant: "destructive",
-        });
+        alert('A conta de origem e destino não podem ser iguais');
         return;
       }
     }
@@ -87,12 +79,13 @@ export function TransactionEditForm({
       transaction_type: data.transaction_type,
       description: data.description,
       amount: parseFloat(data.amount.replace(',', '.')),
-      status: data.status,
       chart_account_id: data.chart_account_id || null,
       bank_account_id: data.bank_account_id || null,
       destination_account_id: data.transaction_type === 'transferencia' ? data.destination_account_id : null,
       contact_id: data.contact_id || null,
       due_date: data.due_date || null,
+      status: data.status,
+      payment_method: data.payment_method || null,
     };
 
     const result = await updateTransaction(transaction.id, transactionData);
@@ -119,6 +112,18 @@ export function TransactionEditForm({
     }
   };
 
+  // Payment method options
+  const paymentMethods = [
+    { value: 'dinheiro', label: 'Dinheiro' },
+    { value: 'cartao_credito', label: 'Cartão de Crédito' },
+    { value: 'cartao_debito', label: 'Cartão de Débito' },
+    { value: 'pix', label: 'PIX' },
+    { value: 'transferencia_bancaria', label: 'Transferência Bancária' },
+    { value: 'cheque', label: 'Cheque' },
+    { value: 'boleto', label: 'Boleto' },
+    { value: 'outro', label: 'Outro' },
+  ];
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -129,10 +134,10 @@ export function TransactionEditForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Tipo de Transação</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo" />
+                      <SelectValue />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -194,10 +199,10 @@ export function TransactionEditForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Conta de Origem</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione a conta de origem" />
+                        <SelectValue />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -219,10 +224,10 @@ export function TransactionEditForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Conta de Destino</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione a conta de destino" />
+                        <SelectValue />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -247,10 +252,10 @@ export function TransactionEditForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Conta do Plano</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value || ''}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione a conta" />
+                        <SelectValue />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -274,10 +279,10 @@ export function TransactionEditForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Conta Bancária</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value || ''}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione a conta" />
+                        <SelectValue />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -295,18 +300,43 @@ export function TransactionEditForm({
           </div>
         )}
 
-        {transactionType !== 'transferencia' && (
-          <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="payment_method"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Método de Pagamento</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {paymentMethods.map((method) => (
+                      <SelectItem key={method.value} value={method.value}>
+                        {method.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {transactionType !== 'transferencia' && (
             <FormField
               control={form.control}
               name="contact_id"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Contato</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value || ''}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione o contato" />
+                        <SelectValue />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -321,7 +351,11 @@ export function TransactionEditForm({
                 </FormItem>
               )}
             />
+          )}
+        </div>
 
+        {transactionType !== 'transferencia' && (
+          <div className="grid grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="due_date"
@@ -332,9 +366,33 @@ export function TransactionEditForm({
                     <Input
                       type="date"
                       {...field}
-                      value={field.value || ''}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {getStatusOptions().map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -342,37 +400,12 @@ export function TransactionEditForm({
           </div>
         )}
 
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {getStatusOptions().map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => form.reset()}>
             Cancelar
           </Button>
           <Button type="submit">
-            Atualizar Lançamento
+            Salvar Alterações
           </Button>
         </div>
       </form>
