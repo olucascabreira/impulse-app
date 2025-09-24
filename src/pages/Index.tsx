@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChevronDown } from "lucide-react";
+import { ValueDisplay } from "@/components/ui/value-display";
 
 const Index = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -51,8 +52,11 @@ const Index = () => {
     );
   };
 
-  // Calculate statistics for the selected month using due_date
+  // Calculate statistics for the selected month and previous month using due_date
   const stats = useMemo(() => {
+    // Get the same month in the previous year to handle year transitions
+    const prevMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1);
+    
     // Filter transactions for the selected month and year using due_date
     const monthlyTransactions = allTransactions.filter(t => {
       if (!t.due_date) return false; // Skip if no due_date
@@ -63,15 +67,49 @@ const Index = () => {
       );
     });
 
+    // Filter transactions for the previous month using due_date
+    const prevMonthlyTransactions = allTransactions.filter(t => {
+      if (!t.due_date) return false; // Skip if no due_date
+      const transactionDate = new Date(t.due_date);
+      return (
+        transactionDate.getMonth() === prevMonth.getMonth() &&
+        transactionDate.getFullYear() === prevMonth.getFullYear()
+      );
+    });
+
     // For receitas (incomes), we consider 'pago' as realized
     const monthlyRevenue = monthlyTransactions
       .filter(t => t.transaction_type === 'entrada' && t.status === 'pago')
       .reduce((sum, t) => sum + t.amount, 0);
 
+    const prevMonthlyRevenue = prevMonthlyTransactions
+      .filter(t => t.transaction_type === 'entrada' && t.status === 'pago')
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    // Calculate revenue trend
+    const revenueTrend = prevMonthlyRevenue === 0 
+      ? { value: "N/A", isPositive: true } 
+      : { 
+          value: `${Math.abs(((monthlyRevenue - prevMonthlyRevenue) / prevMonthlyRevenue) * 100).toFixed(1)}% vs mês anterior`, 
+          isPositive: monthlyRevenue >= prevMonthlyRevenue 
+        };
+
     // For despesas (expenses), we consider 'pago' as realized
     const monthlyExpenses = monthlyTransactions
       .filter(t => t.transaction_type === 'saida' && t.status === 'pago')
       .reduce((sum, t) => sum + t.amount, 0);
+
+    const prevMonthlyExpenses = prevMonthlyTransactions
+      .filter(t => t.transaction_type === 'saida' && t.status === 'pago')
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    // Calculate expenses trend
+    const expensesTrend = prevMonthlyExpenses === 0 
+      ? { value: "N/A", isPositive: false } 
+      : { 
+          value: `${Math.abs(((monthlyExpenses - prevMonthlyExpenses) / prevMonthlyExpenses) * 100).toFixed(1)}% vs mês anterior`, 
+          isPositive: monthlyExpenses < prevMonthlyExpenses 
+        };
 
     // Calculate total cash balance based on selected accounts
     const selectedAccounts = bankAccounts.filter(account => 
@@ -80,10 +118,24 @@ const Index = () => {
     
     const totalCashBalance = selectedAccounts.reduce((sum, acc) => sum + acc.current_balance, 0);
 
+    // For cash balance trend, calculate based on net activity (revenue - expenses) difference between months
+    const monthlyNet = monthlyRevenue - monthlyExpenses;
+    const prevMonthlyNet = prevMonthlyRevenue - prevMonthlyExpenses;
+    
+    const cashBalanceTrend = prevMonthlyNet === 0 
+      ? { value: "N/A", isPositive: true } 
+      : { 
+          value: `${Math.abs(((monthlyNet - prevMonthlyNet) / prevMonthlyNet) * 100).toFixed(1)}% vs mês anterior`, 
+          isPositive: monthlyNet >= prevMonthlyNet 
+        };
+
     return {
       monthlyRevenue,
       monthlyExpenses,
       totalCashBalance,
+      revenueTrend,
+      expensesTrend,
+      cashBalanceTrend,
     };
   }, [allTransactions, bankAccounts, selectedDate, selectedAccountIds]);
 
@@ -194,15 +246,15 @@ const Index = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatCard
           title="Receitas do Mês"
-          value={`R$ ${stats.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+          value={stats.monthlyRevenue}
           icon={TrendingUp}
-          trend={{ value: "12.5% vs mês anterior", isPositive: true }}
+          trend={stats.revenueTrend}
         />
         <StatCard
           title="Despesas do Mês"
-          value={`R$ ${stats.monthlyExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+          value={stats.monthlyExpenses}
           icon={TrendingDown}
-          trend={{ value: "3.2% vs mês anterior", isPositive: false }}
+          trend={stats.expensesTrend}
         />
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -215,10 +267,10 @@ const Index = () => {
             <div className="flex justify-between items-start">
               <div>
                 <div className="text-2xl font-bold text-foreground">
-                  R$ {stats.totalCashBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  <ValueDisplay value={stats.totalCashBalance} />
                 </div>
-                <p className="text-xs mt-1 text-success">
-                  ↗ 8.1% vs mês anterior
+                <p className={`text-xs mt-1 ${stats.cashBalanceTrend.isPositive ? 'text-success' : 'text-destructive'}`}>
+                  {stats.cashBalanceTrend.value !== "N/A" ? (stats.cashBalanceTrend.isPositive ? '↗ ' : '↘ ') : ''} {stats.cashBalanceTrend.value !== "N/A" ? stats.cashBalanceTrend.value : "Sem dados anteriores"}
                 </p>
               </div>
               <DropdownMenu>
@@ -256,7 +308,7 @@ const Index = () => {
                         </span>
                       </div>
                       <span className="ml-auto font-medium">
-                        R$ {account.current_balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        <ValueDisplay value={account.current_balance} />
                       </span>
                     </DropdownMenuCheckboxItem>
                   ))}

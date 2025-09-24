@@ -10,6 +10,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useContacts } from '@/hooks/use-contacts';
 import { useCompanies } from '@/hooks/use-companies';
 
+// Address fields
+const addressSchema = z.object({
+  street: z.string().optional(),
+  number: z.string().optional(),
+  neighborhood: z.string().optional(),
+  complement: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+});
+
 const contactSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
   contact_type: z.enum(['cliente', 'fornecedor'], {
@@ -18,7 +29,7 @@ const contactSchema = z.object({
   document: z.string().optional(),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
   phone: z.string().optional(),
-  address: z.string().optional(),
+  address: addressSchema.optional(),
 });
 
 type ContactFormData = z.infer<typeof contactSchema>;
@@ -33,6 +44,66 @@ export function ContactEditForm({ contact, onSuccess }: ContactEditFormProps) {
   const { updateContact } = useContacts(currentCompany?.id);
   const [loading, setLoading] = useState(false);
 
+  // Parse the existing address string into separate components
+  const parseAddress = (addressString: string | null) => {
+    if (!addressString) {
+      return {
+        street: '',
+        number: '',
+        neighborhood: '',
+        complement: '',
+        city: '',
+        state: '',
+        zipCode: '',
+      };
+    }
+
+    // Simple parsing logic - in a real application you might want more robust parsing
+    const parts = addressString.split(', ');
+    const result: any = {
+      street: '',
+      number: '',
+      neighborhood: '',
+      complement: '',
+      city: '',
+      state: '',
+      zipCode: '',
+    };
+
+    // Look for patterns like "Rua, Number" or "Apto" for complement
+    for (const part of parts) {
+      // Try to identify parts based on common patterns
+      if (part.includes('Apto') || part.includes('Bloco') || part.includes('Andar') || part.includes('Fundos')) {
+        result.complement = part;
+      } else if (/^\d+$/.test(part) || /\d/.test(part)) {
+        // Likely number
+        if (!result.number) result.number = part;
+      } else if (part.length <= 2) {
+        // Likely state abbreviation
+        result.state = part;
+      } else if (part.length === 8 || part.length === 9) {
+        // Likely ZIP code
+        result.zipCode = part;
+      } else if (part.toLowerCase().includes('centro') || part.toLowerCase().includes('bairro') || part.toLowerCase().includes('bairro')) {
+        result.neighborhood = part;
+      } else if (part.toLowerCase().includes('são paulo') || part.toLowerCase().includes('rio de janeiro') || part.toLowerCase().includes('brasília')) {
+        result.city = part;
+      } else if (!result.street) {
+        result.street = part;
+      } else if (!result.neighborhood) {
+        result.neighborhood = part;
+      } else if (!result.city) {
+        result.city = part;
+      } else if (!result.state) {
+        result.state = part;
+      }
+    }
+
+    return result;
+  };
+
+  const parsedAddress = parseAddress(contact.address);
+
   const form = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
     defaultValues: {
@@ -41,20 +112,32 @@ export function ContactEditForm({ contact, onSuccess }: ContactEditFormProps) {
       document: contact.document || '',
       email: contact.email || '',
       phone: contact.phone || '',
-      address: contact.address || '',
+      address: parsedAddress,
     },
   });
 
   const onSubmit = async (data: ContactFormData) => {
     setLoading(true);
     try {
+      // Combine address fields into a single string
+      const addressParts = [];
+      if (data.address?.street) addressParts.push(data.address.street);
+      if (data.address?.number) addressParts.push(data.address.number);
+      if (data.address?.neighborhood) addressParts.push(data.address.neighborhood);
+      if (data.address?.complement) addressParts.push(data.address.complement);
+      if (data.address?.city) addressParts.push(data.address.city);
+      if (data.address?.state) addressParts.push(data.address.state);
+      if (data.address?.zipCode) addressParts.push(data.address.zipCode);
+      
+      const combinedAddress = addressParts.join(', ');
+
       const updateData = {
         name: data.name,
         contact_type: data.contact_type,
         document: data.document || null,
         email: data.email || null,
         phone: data.phone || null,
-        address: data.address || null,
+        address: combinedAddress || null,
       };
 
       const result = await updateContact(contact.id, updateData);
@@ -149,18 +232,105 @@ export function ContactEditForm({ contact, onSuccess }: ContactEditFormProps) {
           )}
         />
 
+        {/* Address fields */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="address.street"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Rua</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: Rua das Flores" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="address.number"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Número</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: 123" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="address.neighborhood"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Bairro</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: Centro" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="address.complement"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Complemento</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: Apto 45" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="address.city"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cidade</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: São Paulo" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="address.state"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Estado</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: SP" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
         <FormField
           control={form.control}
-          name="address"
+          name="address.zipCode"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Endereço</FormLabel>
+              <FormLabel>CEP</FormLabel>
               <FormControl>
-                <Textarea
-                  placeholder="Rua, número, bairro, cidade, estado"
-                  rows={3}
-                  {...field}
-                />
+                <Input placeholder="Ex: 01001-000" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

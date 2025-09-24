@@ -2,6 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useMemo } from 'react';
 import { Transaction } from '@/hooks/use-transactions';
+import { ValueDisplay } from '@/components/ui/value-display';
+
+interface FinancialSummaryProps {
+  transactions: Transaction[];
+  selectedDate: Date;
+}
 
 interface FinancialSummaryProps {
   transactions: Transaction[];
@@ -130,7 +136,7 @@ export function FinancialSummary({ transactions, selectedDate }: FinancialSummar
               <div className="flex justify-between mb-1">
                 <span className="text-sm font-medium">Recebido</span>
                 <span className="text-sm font-medium text-emerald-600">
-                  R$ {receivablesData.received.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  <ValueDisplay value={receivablesData.received} />
                 </span>
               </div>
               <Progress value={receivablesData.percentage} className="h-2" />
@@ -140,19 +146,19 @@ export function FinancialSummary({ transactions, selectedDate }: FinancialSummar
               <div className="bg-muted p-3 rounded-lg">
                 <p className="text-xs text-muted-foreground">Realizado</p>
                 <p className="font-semibold text-emerald-600">
-                  R$ {receivablesData.received.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  <ValueDisplay value={receivablesData.received} />
                 </p>
               </div>
               <div className="bg-muted p-3 rounded-lg">
                 <p className="text-xs text-muted-foreground">Falta</p>
                 <p className="font-semibold text-amber-600">
-                  R$ {receivablesData.pending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  <ValueDisplay value={receivablesData.pending} />
                 </p>
               </div>
               <div className="bg-muted p-3 rounded-lg col-span-2">
                 <p className="text-xs text-muted-foreground">Previsto</p>
                 <p className="font-semibold">
-                  R$ {receivablesData.planned.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  <ValueDisplay value={receivablesData.planned} />
                 </p>
               </div>
             </div>
@@ -213,7 +219,7 @@ export function FinancialSummary({ transactions, selectedDate }: FinancialSummar
               <div className="flex justify-between mb-1">
                 <span className="text-sm font-medium">Pago</span>
                 <span className="text-sm font-medium text-red-600">
-                  R$ {payablesData.paid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  <ValueDisplay value={payablesData.paid} />
                 </span>
               </div>
               <Progress value={payablesData.percentage} className="h-2" />
@@ -223,19 +229,19 @@ export function FinancialSummary({ transactions, selectedDate }: FinancialSummar
               <div className="bg-muted p-3 rounded-lg">
                 <p className="text-xs text-muted-foreground">Realizado</p>
                 <p className="font-semibold text-red-600">
-                  R$ {payablesData.paid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  <ValueDisplay value={payablesData.paid} />
                 </p>
               </div>
               <div className="bg-muted p-3 rounded-lg">
                 <p className="text-xs text-muted-foreground">Falta</p>
                 <p className="font-semibold text-amber-600">
-                  R$ {payablesData.pending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  <ValueDisplay value={payablesData.pending} />
                 </p>
               </div>
               <div className="bg-muted p-3 rounded-lg col-span-2">
                 <p className="text-xs text-muted-foreground">Previsto</p>
                 <p className="font-semibold">
-                  R$ {payablesData.planned.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  <ValueDisplay value={payablesData.planned} />
                 </p>
               </div>
             </div>

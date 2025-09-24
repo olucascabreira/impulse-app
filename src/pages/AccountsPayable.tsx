@@ -17,7 +17,7 @@ import { useContacts } from '@/hooks/use-contacts';
 import { useCompanies } from '@/hooks/use-companies';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionEditForm } from '@/components/transactions/TransactionEditForm';
-import { format } from 'date-fns';
+import { format, parseISO, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 
@@ -57,6 +57,7 @@ export default function AccountsPayable() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [monthFilter, setMonthFilter] = useState<string>('all');
   const [isAddingTransaction, setIsAddingTransaction] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [viewingTransaction, setViewingTransaction] = useState<any>(null);
@@ -87,9 +88,18 @@ export default function AccountsPayable() {
                           transaction.contacts?.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'all' || transaction.status === statusFilter;
       
-      return matchesSearch && matchesStatus;
+      // Month filter logic
+      let matchesMonth = true;
+      if (monthFilter !== 'all' && transaction.due_date) {
+        const transactionDate = parseISO(transaction.due_date);
+        const [year, month] = monthFilter.split('-');
+        const filterDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+        matchesMonth = isSameMonth(transactionDate, filterDate);
+      }
+      
+      return matchesSearch && matchesStatus && matchesMonth;
     });
-  }, [accountsPayableTransactions, searchTerm, statusFilter]);
+  }, [accountsPayableTransactions, searchTerm, statusFilter, monthFilter]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -286,6 +296,35 @@ export default function AccountsPayable() {
                 <SelectItem value="atrasado">Atrasado</SelectItem>
                 <SelectItem value="pago">Pago</SelectItem>
                 <SelectItem value="cancelado">Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={monthFilter} onValueChange={setMonthFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Mês" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os meses</SelectItem>
+                {accountsPayableTransactions
+                  .filter(t => t.due_date) // Only transactions with due dates
+                  .map(t => {
+                    const date = parseISO(t.due_date!);
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+                    return `${year}-${month}`;
+                  })
+                  .filter((value, index, arr) => arr.indexOf(value) === index) // Remove duplicates
+                  .sort() // Sort chronologically
+                  .map(monthYear => {
+                    const [year, month] = monthYear.split('-');
+                    const monthNumber = parseInt(month) - 1;
+                    const monthName = format(new Date(parseInt(year), monthNumber, 1), 'MMMM yyyy', { locale: ptBR });
+                    return (
+                      <SelectItem key={monthYear} value={monthYear}>
+                        {monthName.charAt(0).toUpperCase() + monthName.slice(1)} {/* Capitalize month */}
+                      </SelectItem>
+                    );
+                  })}
               </SelectContent>
             </Select>
           </div>

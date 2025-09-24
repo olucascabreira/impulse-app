@@ -15,7 +15,7 @@ import { useChartAccounts } from '@/hooks/use-chart-accounts';
 import { useContacts } from '@/hooks/use-contacts';
 import { useCompanies } from '@/hooks/use-companies';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
-import { format } from 'date-fns';
+import { format, parse, setMonth, setYear, startOfMonth, endOfMonth, isSameMonth, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 // Helper function to format payment method
@@ -48,6 +48,7 @@ export default function CashFlow() {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [monthFilter, setMonthFilter] = useState<string>('all'); // Added month filter state
   const [isAddingTransaction, setIsAddingTransaction] = useState(false);
 
   // Column visibility state
@@ -70,14 +71,23 @@ export default function CashFlow() {
       const matchesType = typeFilter === 'all' || transaction.transaction_type === typeFilter;
       const matchesStatus = statusFilter === 'all' || transaction.status === statusFilter;
       
-      return matchesSearch && matchesType && matchesStatus;
+      // Month filter logic
+      let matchesMonth = true;
+      if (monthFilter !== 'all' && transaction.due_date) {
+        const transactionDate = parseISO(transaction.due_date);
+        const [year, month] = monthFilter.split('-');
+        const filterDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+        matchesMonth = isSameMonth(transactionDate, filterDate);
+      }
+      
+      return matchesSearch && matchesType && matchesStatus && matchesMonth;
     });
 
-    const revenue = transactions
+    const revenue = filtered
       .filter(t => t.transaction_type === 'entrada' && t.status !== 'cancelado')
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    const expense = transactions
+    const expense = filtered
       .filter(t => t.transaction_type === 'saida' && t.status !== 'cancelado')
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
@@ -87,7 +97,7 @@ export default function CashFlow() {
       totalExpense: expense,
       balance: revenue - expense
     };
-  }, [transactions, searchTerm, typeFilter, statusFilter]);
+  }, [transactions, searchTerm, typeFilter, statusFilter, monthFilter]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -243,6 +253,35 @@ export default function CashFlow() {
                 <SelectItem value="pago">Pago</SelectItem>
                 <SelectItem value="recebido">Recebido</SelectItem>
                 <SelectItem value="cancelado">Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={monthFilter} onValueChange={setMonthFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Mês" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os meses</SelectItem>
+                {transactions
+                  .filter(t => t.due_date) // Only transactions with due dates
+                  .map(t => {
+                    const date = parseISO(t.due_date!);
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+                    return `${year}-${month}`;
+                  })
+                  .filter((value, index, arr) => arr.indexOf(value) === index) // Remove duplicates
+                  .sort() // Sort chronologically
+                  .map(monthYear => {
+                    const [year, month] = monthYear.split('-');
+                    const monthNumber = parseInt(month) - 1;
+                    const monthName = format(new Date(parseInt(year), monthNumber, 1), 'MMMM yyyy', { locale: ptBR });
+                    return (
+                      <SelectItem key={monthYear} value={monthYear}>
+                        {monthName.charAt(0).toUpperCase() + monthName.slice(1)} {/* Capitalize month */}
+                      </SelectItem>
+                    );
+                  })}
               </SelectContent>
             </Select>
           </div>

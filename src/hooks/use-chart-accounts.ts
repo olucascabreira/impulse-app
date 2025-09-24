@@ -58,16 +58,20 @@ export function useChartAccounts(companyId?: string) {
     if (!companyId) return { error: new Error('Company ID required') };
 
     try {
+      // Certifique-se de que o company_id está correto no objeto de dados
+      const insertData = {
+        ...accountData,
+        company_id: companyId,
+      };
+
       const { data, error } = await supabase
         .from('chart_accounts')
-        .insert({
-          ...accountData,
-          company_id: companyId,
-        })
+        .insert(insertData)
         .select()
         .single();
 
       if (error) {
+        console.error('Supabase insert error:', error);
         toast({
           title: "Erro ao criar conta",
           description: error.message,
@@ -76,7 +80,12 @@ export function useChartAccounts(companyId?: string) {
         return { error };
       }
 
-      setChartAccounts(prev => [...prev, data as ChartAccount].sort((a, b) => (a.codigo || '').localeCompare(b.codigo || '')));
+      // Atualize o estado local
+      setChartAccounts(prev => {
+        const updatedAccounts = [...prev, data as ChartAccount];
+        return updatedAccounts.sort((a, b) => (a.codigo || '').localeCompare(b.codigo || ''));
+      });
+      
       toast({
         title: "Conta criada!",
         description: "Conta do plano de contas criada com sucesso.",
@@ -85,6 +94,11 @@ export function useChartAccounts(companyId?: string) {
       return { data };
     } catch (error) {
       console.error('Error creating chart account:', error);
+      toast({
+        title: "Erro ao criar conta",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
       return { error };
     }
   };

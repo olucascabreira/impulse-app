@@ -13,6 +13,7 @@ import { BankAccount } from '@/hooks/use-bank-accounts';
 import { ChartAccount } from '@/hooks/use-chart-accounts';
 import { Contact } from '@/hooks/use-contacts';
 import { Transaction } from '@/hooks/use-transactions';
+import { useToast } from '@/hooks/use-toast';
 
 const transactionSchema = z.object({
   transaction_type: z.enum(['entrada', 'saida', 'transferencia']),
@@ -45,6 +46,7 @@ export function TransactionEditForm({
   onSuccess
 }: TransactionEditFormProps) {
   const { updateTransaction } = useTransactions(transaction.company_id);
+  const { toast } = useToast();
 
   const form = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
@@ -57,8 +59,8 @@ export function TransactionEditForm({
       destination_account_id: transaction.destination_account_id || '',
       contact_id: transaction.contact_id || '',
       due_date: transaction.due_date || '',
-      status: transaction.status,
-      payment_method: transaction.payment_method || '', // Add payment method default value
+      status: transaction.transaction_type === 'transferencia' ? 'pago' : transaction.status, // For transfers, default to 'pago' status
+      payment_method: transaction.payment_method || '', 
     },
   });
 
@@ -66,32 +68,70 @@ export function TransactionEditForm({
     // Validate transfer transactions
     if (data.transaction_type === 'transferencia') {
       if (!data.bank_account_id || !data.destination_account_id) {
-        alert('Para transferências, selecione a conta de origem e destino');
+        toast({
+          title: "Erro",
+          description: "Para transferências, selecione a conta de origem e destino",
+          variant: "destructive",
+        });
         return;
       }
       if (data.bank_account_id === data.destination_account_id) {
-        alert('A conta de origem e destino não podem ser iguais');
+        toast({
+          title: "Erro",
+          description: "A conta de origem e destino não podem ser iguais",
+          variant: "destructive",
+        });
         return;
       }
     }
 
-    const transactionData = {
-      transaction_type: data.transaction_type,
-      description: data.description,
-      amount: parseFloat(data.amount.replace(',', '.')),
-      chart_account_id: data.chart_account_id || null,
-      bank_account_id: data.bank_account_id || null,
-      destination_account_id: data.transaction_type === 'transferencia' ? data.destination_account_id : null,
-      contact_id: data.contact_id || null,
-      due_date: data.due_date || null,
-      status: data.status,
-      payment_method: data.payment_method || null,
-    };
+    try {
+      const amount = parseFloat(data.amount.replace(',', '.'));
+      if (isNaN(amount) || amount <= 0) {
+        toast({
+          title: "Erro",
+          description: "Valor inválido",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    const result = await updateTransaction(transaction.id, transactionData);
-    
-    if (!result.error) {
-      onSuccess?.();
+      const transactionData = {
+        transaction_type: data.transaction_type,
+        description: data.description,
+        amount: amount,
+        chart_account_id: data.chart_account_id || null,
+        bank_account_id: data.bank_account_id || null,
+        destination_account_id: data.transaction_type === 'transferencia' ? data.destination_account_id : null,
+        contact_id: data.contact_id || null,
+        due_date: data.due_date || null,
+        status: data.transaction_type === 'transferencia' ? 'pago' : data.status, // For transfers, always use 'pago' status
+        payment_method: data.payment_method || null,
+      };
+
+      const result = await updateTransaction(transaction.id, transactionData);
+      
+      if (!result.error) {
+        toast({
+          title: "Transação atualizada!",
+          description: "Dados da transação atualizados com sucesso.",
+        });
+        onSuccess?.();
+      } else {
+        console.error('Error updating transaction:', result.error);
+        toast({
+          title: "Erro ao atualizar transação",
+          description: result.error.message || "Ocorreu um erro ao atualizar a transação",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error in form submission:', error);
+      toast({
+        title: "Erro inesperado",
+        description: error instanceof Error ? error.message : "Ocorreu um erro inesperado",
+        variant: "destructive",
+      });
     }
   };
 
@@ -101,7 +141,7 @@ export function TransactionEditForm({
   const getStatusOptions = () => {
     if (transactionType === 'transferencia') {
       return [
-        { value: 'transferido', label: 'Transferido' },
+        { value: 'pago', label: 'Pago' }, // Use 'pago' instead of 'transferido' for transfers
       ];
     } else {
       return [
@@ -206,11 +246,13 @@ export function TransactionEditForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {bankAccounts.map((account) => (
-                        <SelectItem key={account.id} value={account.id}>
-                          {account.bank_name} - {account.account_number}
-                        </SelectItem>
-                      ))}
+                      {bankAccounts
+                        .filter(account => account.id !== field.value) // Filter out the selected destination account
+                        .map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            {account.bank_name} - {account.account_number} (Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(account.current_balance)})
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -231,11 +273,13 @@ export function TransactionEditForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {bankAccounts.map((account) => (
-                        <SelectItem key={account.id} value={account.id}>
-                          {account.bank_name} - {account.account_number}
-                        </SelectItem>
-                      ))}
+                      {bankAccounts
+                        .filter(account => account.id !== form.getValues('bank_account_id')) // Filter out the selected source account
+                        .map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            {account.bank_name} - {account.account_number}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -288,7 +332,7 @@ export function TransactionEditForm({
                     <SelectContent>
                       {bankAccounts.map((account) => (
                         <SelectItem key={account.id} value={account.id}>
-                          {account.bank_name} - {account.account_number}
+                          {account.bank_name} - {account.account_number} (Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(account.current_balance)})
                         </SelectItem>
                       ))}
                     </SelectContent>

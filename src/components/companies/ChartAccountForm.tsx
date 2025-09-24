@@ -15,7 +15,7 @@ const chartAccountSchema = z.object({
     required_error: 'Tipo é obrigatório',
   }),
   codigo: z.string().optional(),
-  parent_id: z.string().optional(),
+  parent_id: z.string().optional().nullable(),
 });
 
 type ChartAccountFormData = z.infer<typeof chartAccountSchema>;
@@ -35,30 +35,38 @@ export function ChartAccountForm({ onSuccess }: ChartAccountFormProps) {
       nome: '',
       tipo: 'receita',
       codigo: '',
-      parent_id: '',
+      parent_id: 'null',
     },
   });
 
   const onSubmit = async (data: ChartAccountFormData) => {
-    if (!currentCompany) return;
+    if (!currentCompany) {
+      console.error('No current company selected');
+      return;
+    }
 
     setLoading(true);
     try {
       const accountData = {
         nome: data.nome,
-        tipo: data.tipo,
-        codigo: data.codigo,
-        company_id: currentCompany.id,
-        parent_id: data.parent_id || null,
+        tipo: data.tipo as 'receita' | 'despesa', // Assegura o tipo correto
+        codigo: data.codigo || null, // Garante que seja null se vazio
+        parent_id: data.parent_id === 'null' ? null : data.parent_id || null,
+        // company_id será adicionado no hook
       };
 
+      console.log('Sending data to create:', accountData); // Log para debug
       const result = await createChartAccount(accountData);
+      console.log('Create result:', result); // Log para debug
+      
       if (result && !result.error) {
         form.reset();
         onSuccess?.();
+      } else {
+        console.error('Error creating chart account:', result?.error);
       }
     } catch (error) {
-      console.error('Error creating chart account:', error);
+      console.error('Unexpected error creating chart account:', error);
     } finally {
       setLoading(false);
     }
@@ -132,7 +140,7 @@ export function ChartAccountForm({ onSuccess }: ChartAccountFormProps) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">Nenhuma (Conta Principal)</SelectItem>
+                  <SelectItem value="null">Nenhuma (Conta Principal)</SelectItem>
                   {parentAccounts.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
                       {account.codigo ? `${account.codigo} - ` : ''}{account.nome}

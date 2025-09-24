@@ -335,7 +335,10 @@ const CompanySettings = () => {
   const [companyPhone, setCompanyPhone] = useState('');
   const [website, setWebsite] = useState('');
   const [email, setEmail] = useState('');
-  const [address, setAddress] = useState('');
+  const [street, setStreet] = useState('');
+  const [number, setNumber] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [complement, setComplement] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [zipcode, setZipcode] = useState('');
@@ -354,7 +357,25 @@ const CompanySettings = () => {
       setCompanyPhone(currentCompany.phone || '');
       setWebsite(currentCompany.website || '');
       setEmail(currentCompany.email || '');
-      setAddress(currentCompany.address || '');
+      
+      // Parse the combined address string into separate components
+      if (currentCompany.address) {
+        const addressParts = currentCompany.address.split(', ');
+        if (addressParts.length >= 1) setStreet(addressParts[0] || '');
+        if (addressParts.length >= 2) {
+          const secondPart = addressParts[1];
+          // Check if it looks like a number (all digits) or neighborhood
+          if (/^\d+$/.test(secondPart.trim())) {
+            setNumber(secondPart.trim());
+            if (addressParts.length >= 3) setNeighborhood(addressParts[2] || '');
+            if (addressParts.length >= 4) setComplement(addressParts[3] || '');
+          } else {
+            setNeighborhood(secondPart || '');
+            if (addressParts.length >= 3) setComplement(addressParts[2] || '');
+          }
+        }
+      }
+      
       setCity(currentCompany.city || '');
       setState(currentCompany.state || '');
       setZipcode(currentCompany.zipcode || '');
@@ -521,14 +542,22 @@ const CompanySettings = () => {
     setIsSaving(true);
     
     try {
-      // Update company information
+      // Combine address components for the existing address field
+      const addressParts = [];
+      if (street) addressParts.push(street.trim());
+      if (number) addressParts.push(number.trim());
+      if (neighborhood) addressParts.push(neighborhood.trim());
+      if (complement) addressParts.push(complement.trim());
+      const combinedAddress = addressParts.length > 0 ? addressParts.join(', ') : null;
+      
+      // Update company information with only existing database columns
       const updates: any = {
         name: companyName.trim(),
         cnpj: cnpj || null,
         phone: companyPhone || null,
         website: website.trim() || null,
         email: email.trim() || null,
-        address: address.trim() || null,
+        address: combinedAddress, // Store the combined address in the existing field
         city: city.trim() || null,
         state: state.trim() || null,
         zipcode: zipcode || null,
@@ -656,28 +685,63 @@ const CompanySettings = () => {
         </div>
         
         <div className="md:col-span-2 space-y-2">
-          <label className="text-sm font-medium">Endereço</label>
-          <textarea
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="Endereço completo da empresa"
+          <label className="text-sm font-medium">Rua</label>
+          <input
+            type="text"
+            value={street}
+            onChange={(e) => setStreet(e.target.value)}
+            placeholder="Nome da rua ou avenida"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            rows={3}
           />
         </div>
         
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Cidade</label>
-          <input
-            type="text"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            placeholder="Nome da cidade"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
+        <div className="grid grid-cols-4 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Número</label>
+            <input
+              type="text"
+              value={number}
+              onChange={(e) => setNumber(e.target.value)}
+              placeholder="Número"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Bairro</label>
+            <input
+              type="text"
+              value={neighborhood}
+              onChange={(e) => setNeighborhood(e.target.value)}
+              placeholder="Nome do bairro"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-sm font-medium">Complemento</label>
+            <input
+              type="text"
+              value={complement}
+              onChange={(e) => setComplement(e.target.value)}
+              placeholder="Ex: Apto, Bloco, Sala"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
         </div>
         
         <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Cidade</label>
+            <input
+              type="text"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Nome da cidade"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          
           <div className="space-y-2">
             <label className="text-sm font-medium">Estado</label>
             <input
@@ -689,18 +753,18 @@ const CompanySettings = () => {
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm uppercase"
             />
           </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium">CEP</label>
-            <input
-              type="text"
-              value={zipcode}
-              onChange={handleZipcodeChange}
-              placeholder="00000-000"
-              className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm ${errors.zipcode ? 'border-red-500' : ''}`}
-            />
-            {errors.zipcode && <p className="text-sm text-red-500">{errors.zipcode}</p>}
-          </div>
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-medium">CEP</label>
+          <input
+            type="text"
+            value={zipcode}
+            onChange={handleZipcodeChange}
+            placeholder="00000-000"
+            className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm ${errors.zipcode ? 'border-red-500' : ''}`}
+          />
+          {errors.zipcode && <p className="text-sm text-red-500">{errors.zipcode}</p>}
         </div>
         
         <div className="md:col-span-2 space-y-2">

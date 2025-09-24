@@ -55,7 +55,7 @@ export default function ChartAccounts() {
         </div>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => console.log("Botão de nova conta clicado")}>
               <Plus className="h-4 w-4 mr-2" />
               Nova Conta
             </Button>
@@ -64,7 +64,12 @@ export default function ChartAccounts() {
             <DialogHeader>
               <DialogTitle>Criar Nova Conta</DialogTitle>
             </DialogHeader>
-            <ChartAccountForm onSuccess={() => setCreateDialogOpen(false)} />
+            <ChartAccountForm 
+              onSuccess={() => {
+                console.log("Conta criada com sucesso, fechando modal");
+                setCreateDialogOpen(false);
+              }} 
+            />
           </DialogContent>
         </Dialog>
       </div>

@@ -10,6 +10,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useContacts } from '@/hooks/use-contacts';
 import { useCompanies } from '@/hooks/use-companies';
 
+// Address fields
+const addressSchema = z.object({
+  street: z.string().optional(),
+  number: z.string().optional(),
+  neighborhood: z.string().optional(),
+  complement: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+});
+
 const contactSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
   contact_type: z.enum(['cliente', 'fornecedor'], {
@@ -18,7 +29,7 @@ const contactSchema = z.object({
   document: z.string().optional(),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
   phone: z.string().optional(),
-  address: z.string().optional(),
+  address: addressSchema.optional(),
 });
 
 type ContactFormData = z.infer<typeof contactSchema>;
@@ -40,7 +51,15 @@ export function ContactForm({ onSuccess }: ContactFormProps) {
       document: '',
       email: '',
       phone: '',
-      address: '',
+      address: {
+        street: '',
+        number: '',
+        neighborhood: '',
+        complement: '',
+        city: '',
+        state: '',
+        zipCode: '',
+      },
     },
   });
 
@@ -49,13 +68,25 @@ export function ContactForm({ onSuccess }: ContactFormProps) {
 
     setLoading(true);
     try {
+      // Combine address fields into a single string
+      const addressParts = [];
+      if (data.address?.street) addressParts.push(data.address.street);
+      if (data.address?.number) addressParts.push(data.address.number);
+      if (data.address?.neighborhood) addressParts.push(data.address.neighborhood);
+      if (data.address?.complement) addressParts.push(data.address.complement);
+      if (data.address?.city) addressParts.push(data.address.city);
+      if (data.address?.state) addressParts.push(data.address.state);
+      if (data.address?.zipCode) addressParts.push(data.address.zipCode);
+      
+      const combinedAddress = addressParts.join(', ');
+
       const contactData = {
         name: data.name,
         contact_type: data.contact_type,
         document: data.document || null,
         email: data.email || null,
         phone: data.phone || null,
-        address: data.address || null,
+        address: combinedAddress || null,
         company_id: currentCompany.id,
       };
 
@@ -152,18 +183,105 @@ export function ContactForm({ onSuccess }: ContactFormProps) {
           )}
         />
 
+        {/* Address fields */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="address.street"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Rua</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: Rua das Flores" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="address.number"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Número</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: 123" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="address.neighborhood"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Bairro</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: Centro" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="address.complement"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Complemento</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: Apto 45" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="address.city"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cidade</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: São Paulo" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="address.state"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Estado</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: SP" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
         <FormField
           control={form.control}
-          name="address"
+          name="address.zipCode"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Endereço</FormLabel>
+              <FormLabel>CEP</FormLabel>
               <FormControl>
-                <Textarea
-                  placeholder="Rua, número, bairro, cidade, estado"
-                  rows={3}
-                  {...field}
-                />
+                <Input placeholder="Ex: 01001-000" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

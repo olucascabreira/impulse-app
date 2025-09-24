@@ -15,7 +15,7 @@ const chartAccountSchema = z.object({
     required_error: 'Tipo é obrigatório',
   }),
   codigo: z.string().optional(),
-  parent_id: z.string().optional(),
+  parent_id: z.string().optional().nullable(),
 });
 
 type ChartAccountFormData = z.infer<typeof chartAccountSchema>;
@@ -36,7 +36,7 @@ export function ChartAccountEditForm({ account, onSuccess }: ChartAccountEditFor
       nome: account.nome,
       tipo: account.tipo,
       codigo: account.codigo || '',
-      parent_id: account.parent_id || '',
+      parent_id: account.parent_id || 'null',
     },
   });
 
@@ -44,16 +44,23 @@ export function ChartAccountEditForm({ account, onSuccess }: ChartAccountEditFor
     setLoading(true);
     try {
       const updateData = {
-        ...data,
-        parent_id: data.parent_id || null,
+        nome: data.nome,
+        tipo: data.tipo as 'receita' | 'despesa',
+        codigo: data.codigo || null,
+        parent_id: data.parent_id === 'null' ? null : data.parent_id || null,
       };
 
+      console.log('Sending update data:', updateData); // Log para debug
       const result = await updateChartAccount(account.id, updateData);
+      console.log('Update result:', result); // Log para debug
+      
       if (result && !result.error) {
         onSuccess?.();
+      } else {
+        console.error('Error updating chart account:', result?.error);
       }
     } catch (error) {
-      console.error('Error updating chart account:', error);
+      console.error('Unexpected error updating chart account:', error);
     } finally {
       setLoading(false);
     }
@@ -127,7 +134,7 @@ export function ChartAccountEditForm({ account, onSuccess }: ChartAccountEditFor
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">Nenhuma (Conta Principal)</SelectItem>
+                  <SelectItem value="null">Nenhuma (Conta Principal)</SelectItem>
                   {parentAccounts.map((acc) => (
                     <SelectItem key={acc.id} value={acc.id}>
                       {acc.codigo ? `${acc.codigo} - ` : ''}{acc.nome}
