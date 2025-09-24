@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanies } from "@/hooks/use-companies";
 import { Settings, LogOut, Eye, EyeOff } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -18,6 +19,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const { profile, user, signOut } = useAuth();
+  const { currentCompany } = useCompanies();
   const [valuesHidden, setValuesHidden] = useState(() => {
     // Get initial state from localStorage or default to false
     const saved = localStorage.getItem('valuesHidden');
@@ -52,9 +54,17 @@ export function AppLayout({ children }: AppLayoutProps) {
           <header className="h-16 border-b bg-background flex items-center px-6">
             <SidebarTrigger className="mr-4" />
             <div className="flex-1">
-              <h1 className="font-semibold text-lg text-foreground">
-                Sistema de Gestão Financeira
-              </h1>
+              {currentCompany?.logo_url ? (
+                <img 
+                  src={currentCompany.logo_url} 
+                  alt="Logo da Empresa" 
+                  className="h-8 object-contain"
+                />
+              ) : (
+                <h1 className="font-semibold text-lg text-foreground">
+                  Sistema de Gestão Financeira
+                </h1>
+              )}
             </div>
             
             {/* Hide/Show Values Button */}

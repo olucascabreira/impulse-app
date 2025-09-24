@@ -65,32 +65,6 @@ export function AppSidebar() {
       className={isCollapsed ? "w-14" : "w-64"}
     >
       <SidebarContent>
-        <div className="p-4">
-          {currentCompany?.logo_url ? (
-            <div className={`flex items-center ${isCollapsed ? 'justify-center' : ''}`}>
-              <img 
-                src={currentCompany.logo_url} 
-                alt="Logo da Empresa" 
-                className={`object-contain ${isCollapsed ? 'h-8 w-8' : 'h-10 w-10'}`}
-              />
-              {!isCollapsed && (
-                <span className="ml-3 font-bold text-xl text-sidebar-primary truncate">
-                  {currentCompany.name}
-                </span>
-              )}
-            </div>
-          ) : (
-            <>
-              <h2 className={`font-bold text-xl text-sidebar-primary ${isCollapsed ? 'hidden' : 'block'}`}>
-                Impulse Financeiro
-              </h2>
-              {isCollapsed && (
-                <div className="text-sidebar-primary text-xl font-bold">IF</div>
-              )}
-            </>
-          )}
-        </div>
-
         <SidebarGroup>
           <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
           <SidebarGroupContent>
