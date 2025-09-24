@@ -10,6 +10,7 @@ export interface Profile {
   perfil: 'admin' | 'financeiro' | 'visualizacao';
   telefone?: string | null;
   cargo?: string | null;
+  photo_url?: string | null;
 }
 
 export function useAuth() {
@@ -160,6 +161,109 @@ export function useAuth() {
     }
   };
 
+  const uploadUserProfilePicture = async (file: File) => {
+    if (!user || !profile) return { error: new Error('User not authenticated') };
+
+    try {
+      // Validar tipo de arquivo
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+      const maxSize = 2 * 1024 * 1024; // 2MB
+      
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Formato de arquivo não suportado. Use PNG, JPG, JPEG ou WEBP.');
+      }
+      
+      if (file.size > maxSize) {
+        throw new Error('Arquivo muito grande. O tamanho máximo é 2MB.');
+      }
+
+      // Upload do arquivo para o storage do Supabase
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/profile.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('user-profile-pictures')
+        .upload(fileName, file, {
+          upsert: true
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Obter URL público do arquivo
+      const { data: { publicUrl } } = supabase.storage
+        .from('user-profile-pictures')
+        .getPublicUrl(fileName);
+
+      // Atualizar registro do perfil com a URL da foto
+      const { data, error: updateError } = await supabase
+        .from('profiles')
+        .update({ photo_url: publicUrl })
+        .eq('id', profile.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Atualizar estado local
+      setProfile(data as Profile);
+
+      toast({
+        title: "Foto atualizada!",
+        description: "Sua foto de perfil foi atualizada com sucesso.",
+      });
+
+      return { data };
+    } catch (error: any) {
+      console.error('Error uploading user profile picture:', error);
+      toast({
+        title: "Erro ao atualizar foto",
+        description: error.message || "Ocorreu um erro ao atualizar sua foto de perfil.",
+        variant: "destructive",
+      });
+      return { error };
+    }
+  };
+
+  const removeUserProfilePicture = async () => {
+    if (!user || !profile) return { error: new Error('User not authenticated') };
+
+    try {
+      // Update the profile record to remove the photo URL
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ photo_url: null })
+        .eq('id', profile.id)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local state
+      setProfile(data as Profile);
+
+      toast({
+        title: "Foto removida!",
+        description: "Sua foto de perfil foi removida com sucesso.",
+      });
+
+      return { data };
+    } catch (error: any) {
+      console.error('Error removing user profile picture:', error);
+      toast({
+        title: "Erro ao remover foto",
+        description: error.message || "Ocorreu um erro ao remover sua foto de perfil.",
+        variant: "destructive",
+      });
+      return { error };
+    }
+  };
+
   return {
     user,
     session,
@@ -169,5 +273,7 @@ export function useAuth() {
     signUp,
     signOut,
     updateProfile,
+    uploadUserProfilePicture,
+    removeUserProfilePicture,
   };
 }

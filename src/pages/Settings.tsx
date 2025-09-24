@@ -23,12 +23,14 @@ import {
   Eye,
   EyeOff,
   Image,
-  Upload
+  Upload,
+  Camera
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompanies } from '@/hooks/use-companies';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -128,16 +130,19 @@ const ProfileSettings = ({ profile, user }: { profile: any; user: any }) => {
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(profile?.telefone || '');
   const [position, setPosition] = useState(profile?.cargo || '');
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
-  const { updateProfile } = useAuth();
+  const { updateProfile, uploadUserProfilePicture, removeUserProfilePicture } = useAuth();
 
   useEffect(() => {
     if (profile) {
       setName(profile.nome || '');
       setPhone(profile.telefone || '');
       setPosition(profile.cargo || '');
+      setProfilePicturePreview(profile.photo_url || null);
     }
     if (user) {
       setEmail(user.email || '');
@@ -200,6 +205,12 @@ const ProfileSettings = ({ profile, user }: { profile: any; user: any }) => {
         if (emailError) throw emailError;
       }
       
+      // Upload profile picture if selected
+      if (profilePictureFile) {
+        const pictureResult = await uploadUserProfilePicture(profilePictureFile);
+        if (pictureResult.error) throw pictureResult.error;
+      }
+      
       toast({
         title: "Perfil atualizado",
         description: "Suas informações foram atualizadas com sucesso.",
@@ -235,6 +246,37 @@ const ProfileSettings = ({ profile, user }: { profile: any; user: any }) => {
     setPhone(formatted);
   };
 
+  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setProfilePictureFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setProfilePicturePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveProfilePicture = async () => {
+    const result = await removeUserProfilePicture();
+    if (!result.error) {
+      setProfilePicturePreview(null);
+      setProfilePictureFile(null);
+    }
+  };
+
+  // Get initials for the avatar fallback
+  const getInitials = (name: string) => {
+    if (!name) return 'U';
+    const names = name.split(' ');
+    return names.length > 1 
+      ? names[0][0].toUpperCase() + names[names.length - 1][0].toUpperCase()
+      : names[0][0].toUpperCase();
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -242,6 +284,57 @@ const ProfileSettings = ({ profile, user }: { profile: any; user: any }) => {
         <p className="text-sm text-muted-foreground">
           Atualize suas informações pessoais e preferências de contato.
         </p>
+      </div>
+      
+      <Separator />
+      
+      {/* Profile Picture Section */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Foto de Perfil</label>
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
+            <Avatar className="h-20 w-20">
+              <AvatarImage 
+                src={profilePicturePreview || profile?.photo_url || ""} 
+                alt={profile?.nome || "User"} 
+              />
+              <AvatarFallback className="text-lg">
+                {getInitials(profile?.nome || user?.email || "User")}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleProfilePictureChange}
+                className="hidden"
+                id="profile-picture-upload"
+              />
+              <label htmlFor="profile-picture-upload">
+                <Button asChild variant="outline" size="sm">
+                  <span>
+                    <Camera className="h-4 w-4 mr-2" />
+                    Alterar Foto
+                  </span>
+                </Button>
+              </label>
+              {(profile?.photo_url || profilePicturePreview) && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleRemoveProfilePicture}
+                  className="mt-2"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Remover
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground mt-2">
+                Formatos suportados: PNG, JPG (máx. 2MB)
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
       
       <Separator />

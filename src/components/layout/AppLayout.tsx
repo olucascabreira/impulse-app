@@ -78,7 +78,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full flex items-center justify-center p-0">
                   <Avatar className="h-8 w-8">
                     <AvatarImage 
-                      src={profile?.avatar_url || profile?.photo_url || ""} 
+                      src={profile?.photo_url || profile?.avatar_url || ""} 
                       alt={profile?.nome || "User"} 
                     />
                     <AvatarFallback className="text-xs">
@@ -91,7 +91,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <div className="flex items-center gap-3 pb-3 mb-3 border-b">
                   <Avatar className="h-10 w-10">
                     <AvatarImage 
-                      src={profile?.avatar_url || profile?.photo_url || ""} 
+                      src={profile?.photo_url || profile?.avatar_url || ""} 
                       alt={profile?.nome || "User"} 
                     />
                     <AvatarFallback className="text-sm">
