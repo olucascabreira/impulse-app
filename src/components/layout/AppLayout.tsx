@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useCompanies } from "@/hooks/use-companies";
 import { usePaymentReminders } from "@/hooks/use-payment-reminders";
-import { Settings, LogOut, Eye, EyeOff, Bell } from "lucide-react";
+import { Settings, LogOut, Eye, EyeOff, Bell, Sun, Moon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationPopover } from "@/components/ui/notification-popover";
 import { useNavigate } from "react-router-dom";
@@ -30,6 +30,66 @@ export function AppLayout({ children }: AppLayoutProps) {
     const saved = localStorage.getItem('valuesHidden');
     return saved === 'true';
   });
+  
+  // Theme state
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    return saved || 'system';
+  });
+  
+  // Apply theme
+  const applyTheme = (newTheme: string) => {
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else if (newTheme === 'light') {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      // System theme - follow OS preference
+      const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    }
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+  };
+  
+  // Toggle between light and dark themes
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    applyTheme(newTheme);
+  };
+  
+  // Initialize theme on component mount
+  React.useEffect(() => {
+    applyTheme(theme);
+    
+    // Listen for system theme changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemThemeChange = () => {
+      if (theme === 'system') {
+        if (mediaQuery.matches) {
+          document.documentElement.classList.add('dark');
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      }
+    };
+    
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+    
+    return () => {
+      mediaQuery.removeEventListener('change', handleSystemThemeChange);
+    };
+  }, [theme]);
   
   const handleNotificationClick = (notification) => {
     // Navigate to the relevant page based on notification type
@@ -106,6 +166,21 @@ export function AppLayout({ children }: AppLayoutProps) {
                 onNotificationClick={handleNotificationClick}
               />
             </div>
+            
+            {/* Theme Toggle Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mr-2 h-8 w-8 p-0"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? "Modo claro" : "Modo escuro"}
+            >
+              {theme === 'dark' ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </Button>
             
             {/* User profile dropdown */}
             <DropdownMenu>
