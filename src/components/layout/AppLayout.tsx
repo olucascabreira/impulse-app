@@ -10,8 +10,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompanies } from "@/hooks/use-companies";
-import { Settings, LogOut, Eye, EyeOff } from "lucide-react";
+import { usePaymentReminders } from "@/hooks/use-payment-reminders";
+import { Settings, LogOut, Eye, EyeOff, Bell } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { NotificationPopover } from "@/components/ui/notification-popover";
+import { useNavigate } from "react-router-dom";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -20,11 +23,23 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const { profile, user, signOut } = useAuth();
   const { currentCompany } = useCompanies();
+  const { notifications, unreadCount, markAllAsRead: markAllNotificationsAsRead } = usePaymentReminders();
+  const navigate = useNavigate();
   const [valuesHidden, setValuesHidden] = useState(() => {
     // Get initial state from localStorage or default to false
     const saved = localStorage.getItem('valuesHidden');
     return saved === 'true';
   });
+  
+  const handleNotificationClick = (notification) => {
+    // Navigate to the relevant page based on notification type
+    if (notification.transactionId) {
+      // Navigate to the transactions page and potentially filter by the transaction
+      navigate('/transacoes');
+      // In a real app, you could pass state or query params to highlight the specific transaction
+      console.log('Navigating to transaction:', notification.transactionId);
+    }
+  };
   
   // Get initials for the avatar fallback
   const getInitials = (name: string) => {
@@ -71,7 +86,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Button 
               variant="ghost" 
               size="sm"
-              className="mr-2 h-8 w-8 p-0"
+              className="mr-3 h-8 w-8 p-0"
               onClick={toggleValuesVisibility}
               title={valuesHidden ? "Mostrar valores" : "Ocultar valores"}
             >
@@ -81,6 +96,16 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <Eye className="h-4 w-4" />
               )}
             </Button>
+            
+            {/* Notification Button */}
+            <div className="mr-2">
+              <NotificationPopover
+                notifications={notifications}
+                unreadCount={unreadCount}
+                onMarkAllAsRead={markAllNotificationsAsRead}
+                onNotificationClick={handleNotificationClick}
+              />
+            </div>
             
             {/* User profile dropdown */}
             <DropdownMenu>
