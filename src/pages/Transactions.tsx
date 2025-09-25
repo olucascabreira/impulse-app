@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { useTransactions } from '@/hooks/use-transactions';
 import { useBankAccounts } from '@/hooks/use-bank-accounts';
 import { useChartAccounts } from '@/hooks/use-chart-accounts';
@@ -17,7 +18,7 @@ import { useContacts } from '@/hooks/use-contacts';
 import { useCompanies } from '@/hooks/use-companies';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionEditForm } from '@/components/transactions/TransactionEditForm';
-import { format, parseISO, isSameMonth } from 'date-fns';
+import { format, parseISO, isSameMonth, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 
@@ -58,11 +59,19 @@ export default function Transactions() {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [monthFilter, setMonthFilter] = useState<string>('all');
   const [isAddingTransaction, setIsAddingTransaction] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [viewingTransaction, setViewingTransaction] = useState<any>(null);
   const [isImporting, setIsImporting] = useState(false);
+
+  // State for date range picker in header (defaults to current month)
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date()),
+  });
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState({
@@ -169,18 +178,26 @@ export default function Transactions() {
       const matchesType = typeFilter === 'all' || transaction.transaction_type === typeFilter;
       const matchesStatus = statusFilter === 'all' || transaction.status === statusFilter;
       
-      // Month filter logic
-      let matchesMonth = true;
-      if (monthFilter !== 'all' && transaction.due_date) {
-        const transactionDate = parseISO(transaction.due_date);
-        const [year, month] = monthFilter.split('-');
-        const filterDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-        matchesMonth = isSameMonth(transactionDate, filterDate);
-      }
-      
-      return matchesSearch && matchesType && matchesStatus && matchesMonth;
+      return matchesSearch && matchesType && matchesStatus;
     });
-  }, [transactions, searchTerm, typeFilter, statusFilter, monthFilter]);
+  }, [transactions, searchTerm, typeFilter, statusFilter]);
+
+  // Filter transactions based on date range
+  const filteredByDateRange = useMemo(() => {
+    if (!dateRange.from && !dateRange.to) {
+      return filteredTransactions;
+    }
+
+    return filteredTransactions.filter(transaction => {
+      if (!transaction.due_date) return true;
+      
+      const transactionDate = parseISO(transaction.due_date);
+      const fromDate = dateRange.from ? new Date(dateRange.from) : new Date(0); // Beginning of time
+      const toDate = dateRange.to ? new Date(dateRange.to) : new Date(8640000000000000); // End of time
+      
+      return transactionDate >= fromDate && transactionDate <= toDate;
+    });
+  }, [filteredTransactions, dateRange]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -247,6 +264,39 @@ export default function Transactions() {
         </div>
         
         <div className="flex items-center gap-2">
+          {/* Calendar Button in Header */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Calendar className="h-4 w-4 mr-2" />
+                {dateRange.from && dateRange.to 
+                  ? `${format(dateRange.from, "MMMM yyyy", { locale: ptBR })}` 
+                  : "Selecionar mês"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <CalendarComponent
+                initialFocus
+                mode="range"
+                defaultMonth={dateRange.from}
+                selected={dateRange}
+                onSelect={(range) => {
+                  if (range?.from && range?.to) {
+                    setDateRange({ from: range.from, to: range.to });
+                  } else if (range?.from) {
+                    // If only start date is selected, set end to end of that month
+                    setDateRange({ from: range.from, to: endOfMonth(range.from) });
+                  } else {
+                    // Reset to current month if cleared
+                    setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
+                  }
+                }}
+                numberOfMonths={2}
+                locale={ptBR}
+              />
+            </PopoverContent>
+          </Popover>
+          
           <Button variant="outline" size="sm" disabled={isImporting}>
             <input 
               type="file" 
@@ -345,34 +395,7 @@ export default function Transactions() {
               </SelectContent>
             </Select>
             
-            <Select value={monthFilter} onValueChange={setMonthFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Mês" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os meses</SelectItem>
-                {transactions
-                  .filter(t => t.due_date) // Only transactions with due dates
-                  .map(t => {
-                    const date = parseISO(t.due_date!);
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
-                    return `${year}-${month}`;
-                  })
-                  .filter((value, index, arr) => arr.indexOf(value) === index) // Remove duplicates
-                  .sort() // Sort chronologically
-                  .map(monthYear => {
-                    const [year, month] = monthYear.split('-');
-                    const monthNumber = parseInt(month) - 1;
-                    const monthName = format(new Date(parseInt(year), monthNumber, 1), 'MMMM yyyy', { locale: ptBR });
-                    return (
-                      <SelectItem key={monthYear} value={monthYear}>
-                        {monthName.charAt(0).toUpperCase() + monthName.slice(1)} {/* Capitalize month */}
-                      </SelectItem>
-                    );
-                  })}
-              </SelectContent>
-            </Select>
+            
           </div>
         </CardContent>
       </Card>
@@ -488,7 +511,7 @@ export default function Transactions() {
           </Popover>
         </CardHeader>
         <CardContent>
-          {filteredTransactions.length === 0 ? (
+          {filteredByDateRange.length === 0 ? (
             <div className="text-center py-12">
               <div className="mx-auto w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
                 <Calendar className="h-12 w-12 text-muted-foreground" />
@@ -523,7 +546,7 @@ export default function Transactions() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTransactions.map((transaction) => (
+                  {filteredByDateRange.map((transaction) => (
                     <TableRow key={transaction.id}>
                       {columnVisibility.date && (
                         <TableCell>

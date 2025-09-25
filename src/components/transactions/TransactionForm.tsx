@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -13,6 +13,14 @@ import { BankAccount } from '@/hooks/use-bank-accounts';
 import { ChartAccount } from '@/hooks/use-chart-accounts';
 import { Contact } from '@/hooks/use-contacts';
 import { useToast } from '@/hooks/use-toast';
+import { Switch } from '@/components/ui/switch';
+import { useRecurringTransactions } from '@/hooks/use-recurring-transactions';
+import { CalendarIcon } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const transactionSchema = z.object({
   transaction_type: z.enum(['entrada', 'saida', 'transferencia']),
@@ -25,6 +33,14 @@ const transactionSchema = z.object({
   due_date: z.string().optional(),
   status: z.enum(['pendente', 'pago', 'atrasado', 'transferido']).default('pendente'),
   payment_method: z.string().optional(),
+  // Recurring transaction fields
+  create_recurring: z.boolean().default(false),
+  recurrence_type: z.enum(['fixed', 'variable']).default('fixed'),
+  frequency: z.enum(['daily', 'weekly', 'monthly', 'quarterly', 'yearly']).default('monthly'),
+  interval: z.number().min(1, 'Intervalo deve ser pelo menos 1').default(1),
+  recurring_start_date: z.string().optional(),
+  recurring_end_date: z.string().optional(),
+  occurrences: z.number().optional(),
 });
 
 type TransactionFormData = z.infer<typeof transactionSchema>;
@@ -47,7 +63,9 @@ export function TransactionForm({
   onSuccess
 }: TransactionFormProps) {
   const { createTransaction } = useTransactions(companyId);
+  const { createRecurringTransaction } = useRecurringTransactions(companyId);
   const { toast } = useToast();
+  const [createRecurring, setCreateRecurring] = useState(false);
 
   const form = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
@@ -62,6 +80,14 @@ export function TransactionForm({
       destination_account_id: '',
       contact_id: '',
       due_date: '',
+      // Recurring transaction defaults
+      create_recurring: false,
+      recurrence_type: 'fixed',
+      frequency: 'monthly',
+      interval: 1,
+      recurring_start_date: new Date().toISOString().split('T')[0],
+      recurring_end_date: '',
+      occurrences: undefined,
     },
   });
 
@@ -145,6 +171,52 @@ export function TransactionForm({
             ? `Transferência de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount)} realizada com sucesso.` 
             : "Transação criada com sucesso.",
         });
+        
+        if (createRecurring) {
+          // Create a recurring transaction based on the current transaction
+          try {
+            const formData = form.getValues();
+            const recurringTransactionData = {
+              transaction_type: transactionData.transaction_type,
+              description: transactionData.description,
+              amount: transactionData.amount,
+              chart_account_id: transactionData.chart_account_id,
+              bank_account_id: transactionData.bank_account_id,
+              contact_id: transactionData.contact_id,
+              recurrence_type: formData.recurrence_type,
+              frequency: formData.frequency,
+              interval: formData.interval,
+              start_date: formData.recurring_start_date || new Date().toISOString().split('T')[0],
+              end_date: formData.recurring_end_date || undefined,
+              occurrences: formData.occurrences || undefined,
+              payment_method: transactionData.payment_method,
+              status: transactionData.status,
+            };
+
+            const recurringResult = await createRecurringTransaction(recurringTransactionData);
+            
+            if (recurringResult.error) {
+              console.error('Error creating recurring transaction:', recurringResult.error);
+              toast({
+                title: "Erro ao criar transação recorrente",
+                description: recurringResult.error.message || "Ocorreu um erro ao criar a transação recorrente",
+                variant: "destructive",
+              });
+            } else {
+              toast({
+                title: "Transação recorrente criada!",
+                description: "Modelo de transação recorrente criado com sucesso.",
+              });
+            }
+          } catch (recurringError) {
+            console.error('Error creating recurring transaction:', recurringError);
+            toast({
+              title: "Erro ao criar transação recorrente",
+              description: recurringError instanceof Error ? recurringError.message : "Ocorreu um erro inesperado",
+              variant: "destructive",
+            });
+          }
+        }
         
         form.reset();
         onSuccess?.();
@@ -383,7 +455,7 @@ export function TransactionForm({
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione o método de pagamento" />
+                        <SelectValue placeholder="Selecione o método de pagamento" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -466,6 +538,174 @@ export function TransactionForm({
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+
+        {/* Option to create recurring transaction */}
+        <div className="flex items-center space-x-2 border-t pt-4">
+          <Switch
+            id="create-recurring"
+            checked={createRecurring}
+            onCheckedChange={setCreateRecurring}
+          />
+          <Label htmlFor="create-recurring" className="text-sm font-medium">
+            Criar transação recorrente com base nessa transação
+          </Label>
+        </div>
+
+        {/* Recurring transaction fields - only show when switch is on */}
+        {createRecurring && (
+          <div className="space-y-4 p-4 border rounded-md bg-muted/10">
+            <h3 className="font-medium">Opções de Recorrência</h3>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="frequency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Frequência</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a frequência" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="daily">Diariamente</SelectItem>
+                        <SelectItem value="weekly">Semanalmente</SelectItem>
+                        <SelectItem value="monthly">Mensalmente</SelectItem>
+                        <SelectItem value="quarterly">Trimestralmente</SelectItem>
+                        <SelectItem value="yearly">Anualmente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="interval"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Intervalo</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        min="1" 
+                        placeholder="1"
+                        value={field.value}
+                        onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="recurring_start_date"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Data de Início</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(new Date(field.value), "dd/MM/yyyy", { locale: ptBR })
+                            ) : (
+                              <span>Selecione a data</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ? new Date(field.value) : undefined}
+                          onSelect={(date) => field.onChange(date ? date.toISOString().split('T')[0] : undefined)}
+                          locale={ptBR}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="recurring_end_date"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Data de Término (Opcional)</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(new Date(field.value), "dd/MM/yyyy", { locale: ptBR })
+                            ) : (
+                              <span>Selecione a data</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ? new Date(field.value) : undefined}
+                          onSelect={(date) => field.onChange(date ? date.toISOString().split('T')[0] : undefined)}
+                          locale={ptBR}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="occurrences"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Número de Ocorrências (Opcional)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      min="1" 
+                      placeholder="Deixe em branco para ilimitado"
+                      value={field.value || ''}
+                      onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

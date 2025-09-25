@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { useTransactions } from '@/hooks/use-transactions';
 import { useBankAccounts } from '@/hooks/use-bank-accounts';
 import { useChartAccounts } from '@/hooks/use-chart-accounts';
@@ -48,7 +49,6 @@ export default function CashFlow() {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [monthFilter, setMonthFilter] = useState<string>('all'); // Added month filter state
   const [isAddingTransaction, setIsAddingTransaction] = useState(false);
 
   // Column visibility state
@@ -71,16 +71,7 @@ export default function CashFlow() {
       const matchesType = typeFilter === 'all' || transaction.transaction_type === typeFilter;
       const matchesStatus = statusFilter === 'all' || transaction.status === statusFilter;
       
-      // Month filter logic
-      let matchesMonth = true;
-      if (monthFilter !== 'all' && transaction.due_date) {
-        const transactionDate = parseISO(transaction.due_date);
-        const [year, month] = monthFilter.split('-');
-        const filterDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-        matchesMonth = isSameMonth(transactionDate, filterDate);
-      }
-      
-      return matchesSearch && matchesType && matchesStatus && matchesMonth;
+      return matchesSearch && matchesType && matchesStatus;
     });
 
     const revenue = filtered
@@ -97,7 +88,50 @@ export default function CashFlow() {
       totalExpense: expense,
       balance: revenue - expense
     };
-  }, [transactions, searchTerm, typeFilter, statusFilter, monthFilter]);
+  }, [transactions, searchTerm, typeFilter, statusFilter]);
+
+  // State for date range picker in header (defaults to current month)
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date()),
+  });
+
+  // Filter transactions based on date range
+  const filteredByDateRange = useMemo(() => {
+    if (!dateRange.from && !dateRange.to) {
+      return filteredTransactions;
+    }
+
+    return filteredTransactions.filter(transaction => {
+      if (!transaction.due_date) return true;
+      
+      const transactionDate = parseISO(transaction.due_date);
+      const fromDate = dateRange.from ? new Date(dateRange.from) : new Date(0); // Beginning of time
+      const toDate = dateRange.to ? new Date(dateRange.to) : new Date(8640000000000000); // End of time
+      
+      return transactionDate >= fromDate && transactionDate <= toDate;
+    });
+  }, [filteredTransactions, dateRange]);
+
+  // Calculate totals based on date range filter
+  const { totalRevenueByDateRange, totalExpenseByDateRange, balanceByDateRange } = useMemo(() => {
+    const revenue = filteredByDateRange
+      .filter(t => t.transaction_type === 'entrada' && t.status !== 'cancelado')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+
+    const expense = filteredByDateRange
+      .filter(t => t.transaction_type === 'saida' && t.status !== 'cancelado')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+
+    return {
+      totalRevenueByDateRange: revenue,
+      totalExpenseByDateRange: expense,
+      balanceByDateRange: revenue - expense
+    };
+  }, [filteredByDateRange]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -149,26 +183,61 @@ export default function CashFlow() {
           <p className="text-muted-foreground">Gerencie suas transações financeiras</p>
         </div>
         
-        <Dialog open={isAddingTransaction} onOpenChange={setIsAddingTransaction}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Nova Transação
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Nova Transação</DialogTitle>
-            </DialogHeader>
-            <TransactionForm
-              companyId={currentCompany?.id}
-              bankAccounts={bankAccounts}
-              chartAccounts={chartAccounts}
-              contacts={contacts}
-              onSuccess={() => setIsAddingTransaction(false)}
-            />
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-2">
+          {/* Calendar Button in Header */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Calendar className="h-4 w-4 mr-2" />
+                {dateRange.from && dateRange.to 
+                  ? `${format(dateRange.from, "MMMM yyyy", { locale: ptBR })}` 
+                  : "Selecionar mês"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <CalendarComponent
+                initialFocus
+                mode="range"
+                defaultMonth={dateRange.from}
+                selected={dateRange}
+                onSelect={(range) => {
+                  if (range?.from && range?.to) {
+                    setDateRange({ from: range.from, to: range.to });
+                  } else if (range?.from) {
+                    // If only start date is selected, set end to end of that month
+                    setDateRange({ from: range.from, to: endOfMonth(range.from) });
+                  } else {
+                    // Reset to current month if cleared
+                    setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
+                  }
+                }}
+                numberOfMonths={2}
+                locale={ptBR}
+              />
+            </PopoverContent>
+          </Popover>
+          
+          <Dialog open={isAddingTransaction} onOpenChange={setIsAddingTransaction}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Transação
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Nova Transação</DialogTitle>
+              </DialogHeader>
+              <TransactionForm
+                companyId={currentCompany?.id}
+                bankAccounts={bankAccounts}
+                chartAccounts={chartAccounts}
+                contacts={contacts}
+                onSuccess={() => setIsAddingTransaction(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -181,7 +250,7 @@ export default function CashFlow() {
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-green-600" />
               <span className="text-2xl font-bold text-green-600">
-                {formatCurrency(totalRevenue)}
+                {formatCurrency(totalRevenueByDateRange)}
               </span>
             </div>
           </CardContent>
@@ -195,7 +264,7 @@ export default function CashFlow() {
             <div className="flex items-center gap-2">
               <TrendingDown className="h-5 w-5 text-red-600" />
               <span className="text-2xl font-bold text-red-600">
-                {formatCurrency(totalExpense)}
+                {formatCurrency(totalExpenseByDateRange)}
               </span>
             </div>
           </CardContent>
@@ -208,8 +277,8 @@ export default function CashFlow() {
           <CardContent>
             <div className="flex items-center gap-2">
               <DollarSign className="h-5 w-5" />
-              <span className={`text-2xl font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrency(balance)}
+              <span className={`text-2xl font-bold ${balanceByDateRange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatCurrency(balanceByDateRange)}
               </span>
             </div>
           </CardContent>
@@ -256,34 +325,7 @@ export default function CashFlow() {
               </SelectContent>
             </Select>
             
-            <Select value={monthFilter} onValueChange={setMonthFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Mês" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os meses</SelectItem>
-                {transactions
-                  .filter(t => t.due_date) // Only transactions with due dates
-                  .map(t => {
-                    const date = parseISO(t.due_date!);
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
-                    return `${year}-${month}`;
-                  })
-                  .filter((value, index, arr) => arr.indexOf(value) === index) // Remove duplicates
-                  .sort() // Sort chronologically
-                  .map(monthYear => {
-                    const [year, month] = monthYear.split('-');
-                    const monthNumber = parseInt(month) - 1;
-                    const monthName = format(new Date(parseInt(year), monthNumber, 1), 'MMMM yyyy', { locale: ptBR });
-                    return (
-                      <SelectItem key={monthYear} value={monthYear}>
-                        {monthName.charAt(0).toUpperCase() + monthName.slice(1)} {/* Capitalize month */}
-                      </SelectItem>
-                    );
-                  })}
-              </SelectContent>
-            </Select>
+            
           </div>
         </CardContent>
       </Card>
@@ -389,7 +431,7 @@ export default function CashFlow() {
           </Popover>
         </CardHeader>
         <CardContent>
-          {filteredTransactions.length === 0 ? (
+          {filteredByDateRange.length === 0 ? (
             <div className="text-center py-8">
               <div className="mx-auto w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
                 <DollarSign className="h-12 w-12 text-muted-foreground" />
@@ -422,7 +464,7 @@ export default function CashFlow() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTransactions.map((transaction) => (
+                  {filteredByDateRange.map((transaction) => (
                     <TableRow key={transaction.id}>
                       {columnVisibility.type && (
                         <TableCell>

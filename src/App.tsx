@@ -18,6 +18,7 @@ import Contacts from "./pages/Contacts";
 import AccountsPayable from "./pages/AccountsPayable";
 import AccountsReceivable from "./pages/AccountsReceivable";
 import Settings from "./pages/Settings";
+import RecurringTransactions from "./pages/RecurringTransactions";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/plano-contas" element={<AppLayout><ChartAccounts /></AppLayout>} />
             <Route path="/relatorios" element={<AppLayout><Reports /></AppLayout>} />
             <Route path="/configuracoes" element={<AppLayout><Settings /></AppLayout>} />
+            <Route path="/transacoes-recorrentes" element={<AppLayout><RecurringTransactions /></AppLayout>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,10 +1,8 @@
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
+/**
+ * Format currency value
+ * @param value - The numeric value to format
+ * @returns Formatted currency string
+ */
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -12,6 +10,11 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
+/**
+ * Parse currency string to number
+ * @param value - The currency string to parse (e.g. "R$ 1.234,56" or "1234.56")
+ * @returns The parsed number value
+ */
 export function parseCurrency(value: string): number {
   // Remove currency symbol and other non-numeric characters except decimal separator
   const cleanedValue = value.replace(/[^\d,]/g, '').replace(',', '.');
@@ -19,6 +22,11 @@ export function parseCurrency(value: string): number {
   return isNaN(numberValue) ? 0 : numberValue;
 }
 
+/**
+ * Format payment method for display
+ * @param method - The payment method code
+ * @returns Formatted payment method name
+ */
 export function formatPaymentMethod(method: string | null | undefined): string {
   if (!method) return '-';
   

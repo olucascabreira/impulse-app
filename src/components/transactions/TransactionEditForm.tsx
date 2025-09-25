@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,6 +14,8 @@ import { ChartAccount } from '@/hooks/use-chart-accounts';
 import { Contact } from '@/hooks/use-contacts';
 import { Transaction } from '@/hooks/use-transactions';
 import { useToast } from '@/hooks/use-toast';
+import { Switch } from '@/components/ui/switch';
+import { useRecurringTransactions } from '@/hooks/use-recurring-transactions';
 
 const transactionSchema = z.object({
   transaction_type: z.enum(['entrada', 'saida', 'transferencia']),
@@ -46,7 +48,9 @@ export function TransactionEditForm({
   onSuccess
 }: TransactionEditFormProps) {
   const { updateTransaction } = useTransactions(transaction.company_id);
+  const { createRecurringTransaction } = useRecurringTransactions(transaction.company_id);
   const { toast } = useToast();
+  const [createRecurring, setCreateRecurring] = useState(false);
 
   const form = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
@@ -116,6 +120,50 @@ export function TransactionEditForm({
           title: "Transação atualizada!",
           description: "Dados da transação atualizados com sucesso.",
         });
+        
+        if (createRecurring) {
+          // Create a recurring transaction based on the current transaction
+          try {
+            const recurringTransactionData = {
+              transaction_type: transactionData.transaction_type,
+              description: transactionData.description,
+              amount: transactionData.amount,
+              chart_account_id: transactionData.chart_account_id,
+              bank_account_id: transactionData.bank_account_id,
+              contact_id: transactionData.contact_id,
+              recurrence_type: 'fixed' as const,
+              frequency: 'monthly' as const, // Default to monthly
+              interval: 1, // Default to every 1 month
+              start_date: new Date().toISOString().split('T')[0], // Start today
+              payment_method: transactionData.payment_method,
+              status: transactionData.status,
+            };
+
+            const recurringResult = await createRecurringTransaction(recurringTransactionData);
+            
+            if (recurringResult.error) {
+              console.error('Error creating recurring transaction:', recurringResult.error);
+              toast({
+                title: "Erro ao criar transação recorrente",
+                description: recurringResult.error.message || "Ocorreu um erro ao criar a transação recorrente",
+                variant: "destructive",
+              });
+            } else {
+              toast({
+                title: "Transação recorrente criada!",
+                description: "Modelo de transação recorrente criado com sucesso.",
+              });
+            }
+          } catch (recurringError) {
+            console.error('Error creating recurring transaction:', recurringError);
+            toast({
+              title: "Erro ao criar transação recorrente",
+              description: recurringError instanceof Error ? recurringError.message : "Ocorreu um erro inesperado",
+              variant: "destructive",
+            });
+          }
+        }
+        
         onSuccess?.();
       } else {
         console.error('Error updating transaction:', result.error);
@@ -443,6 +491,18 @@ export function TransactionEditForm({
             />
           </div>
         )}
+
+        {/* Option to create recurring transaction */}
+        <div className="flex items-center space-x-2 border-t pt-4">
+          <Switch
+            id="create-recurring"
+            checked={createRecurring}
+            onCheckedChange={setCreateRecurring}
+          />
+          <Label htmlFor="create-recurring" className="text-sm font-medium">
+            Criar transação recorrente com base nessa transação
+          </Label>
+        </div>
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => form.reset()}>
