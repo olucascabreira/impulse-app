@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { ColorPicker } from '@/components/ui/color-picker';
 import { 
   User, 
   Building2, 
@@ -1484,24 +1483,9 @@ const AppearanceSettings = () => {
     return saved || 'system';
   });
   const [language, setLanguage] = useState('pt-BR');
-  const [primaryColor, setPrimaryColor] = useState(() => {
-    const saved = localStorage.getItem('primaryColor');
-    return saved || '#3b82f6'; // blue-500
-  });
-  const [secondaryColor, setSecondaryColor] = useState(() => {
-    const saved = localStorage.getItem('secondaryColor');
-    return saved || '#6b7280'; // gray-500
-  });
-  const [accentColor, setAccentColor] = useState(() => {
-    const saved = localStorage.getItem('accentColor');
-    return saved || '#8b5cf6'; // violet-500
-  });
-  const [isSaving, setIsSaving] = useState(false);
-  const { toast } = useToast();
 
-  // Apply theme and colors to CSS variables
+  // Apply theme to CSS
   useEffect(() => {
-    // Apply theme
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
       document.documentElement.setAttribute('data-theme', 'dark');
@@ -1522,20 +1506,7 @@ const AppearanceSettings = () => {
       }
       localStorage.setItem('theme', 'system');
     }
-    
-    // Apply colors to CSS variables
-    document.documentElement.style.setProperty('--primary', primaryColor);
-    document.documentElement.style.setProperty('--primary-foreground', getContrastColor(primaryColor));
-    document.documentElement.style.setProperty('--secondary', secondaryColor);
-    document.documentElement.style.setProperty('--secondary-foreground', getContrastColor(secondaryColor));
-    document.documentElement.style.setProperty('--accent', accentColor);
-    document.documentElement.style.setProperty('--accent-foreground', getContrastColor(accentColor));
-    
-    // Save to localStorage
-    localStorage.setItem('primaryColor', primaryColor);
-    localStorage.setItem('secondaryColor', secondaryColor);
-    localStorage.setItem('accentColor', accentColor);
-  }, [theme, primaryColor, secondaryColor, accentColor]);
+  }, [theme]);
 
   // Listen for system theme changes
   useEffect(() => {
@@ -1559,42 +1530,6 @@ const AppearanceSettings = () => {
       mediaQuery.removeEventListener('change', handleSystemThemeChange);
     };
   }, [theme]);
-
-  const getContrastColor = (hexColor: string): string => {
-    // Convert hex to RGB
-    const r = parseInt(hexColor.substr(1, 2), 16);
-    const g = parseInt(hexColor.substr(3, 2), 16);
-    const b = parseInt(hexColor.substr(5, 2), 16);
-    
-    // Calculate luminance
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    
-    // Return white for dark backgrounds, black for light backgrounds
-    return luminance > 0.5 ? '#000000' : '#ffffff';
-  };
-
-  const handleSaveColors = async () => {
-    setIsSaving(true);
-    try {
-      // Save to localStorage
-      localStorage.setItem('primaryColor', primaryColor);
-      localStorage.setItem('secondaryColor', secondaryColor);
-      localStorage.setItem('accentColor', accentColor);
-      
-      toast({
-        title: "Cores salvas",
-        description: "As configurações de cores foram salvas com sucesso.",
-      });
-    } catch (error) {
-      toast({
-        title: "Erro ao salvar cores",
-        description: "Ocorreu um erro ao salvar as configurações de cores.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -1638,32 +1573,6 @@ const AppearanceSettings = () => {
         <Separator />
         
         <div>
-          <h4 className="text-md font-medium mb-2">Cores Personalizadas</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <ColorPicker 
-              value={primaryColor}
-              onChange={setPrimaryColor}
-              label="Cor Primária"
-              description="Usada para botões principais e elementos de destaque"
-            />
-            <ColorPicker 
-              value={secondaryColor}
-              onChange={setSecondaryColor}
-              label="Cor Secundária"
-              description="Usada para elementos secundários"
-            />
-            <ColorPicker 
-              value={accentColor}
-              onChange={setAccentColor}
-              label="Cor de Acento"
-              description="Usada para destaques e notificações"
-            />
-          </div>
-        </div>
-        
-        <Separator />
-        
-        <div>
           <h4 className="text-md font-medium mb-2">Idioma</h4>
           <select 
             value={language}
@@ -1674,24 +1583,6 @@ const AppearanceSettings = () => {
             <option value="en">English</option>
             <option value="es">Español</option>
           </select>
-        </div>
-        
-        <Separator />
-        
-        <div className="flex justify-end">
-          <Button onClick={handleSaveColors} disabled={isSaving}>
-            {isSaving ? (
-              <>
-                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
-                Salvando...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Salvar Cores
-              </>
-            )}
-          </Button>
         </div>
       </div>
     </div>
