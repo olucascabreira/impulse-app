@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTransactions } from '@/hooks/use-transactions';
 import { useChartAccounts } from '@/hooks/use-chart-accounts';
 import { useCompanies } from '@/hooks/use-companies';
@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileSpreadsheet, Calendar, TrendingUp, PieChart, BarChart3 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { format } from 'date-fns';
+import { format, startOfYear, endOfYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function Reports() {
@@ -20,62 +20,145 @@ export default function Reports() {
   const { chartAccounts } = useChartAccounts(currentCompany?.id);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [selectedPeriod, setSelectedPeriod] = useState('month');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [selectedPeriod, setSelectedPeriod] = useState('year');
+
+  // Atualizar datas quando o ano mudar
+  useEffect(() => {
+    if (selectedPeriod === 'year' && selectedYear) {
+      const year = parseInt(selectedYear);
+      const start = startOfYear(new Date(year, 0, 1));
+      const end = endOfYear(new Date(year, 0, 1));
+      setStartDate(format(start, 'yyyy-MM-dd'));
+      setEndDate(format(end, 'yyyy-MM-dd'));
+    }
+  }, [selectedYear, selectedPeriod]);
 
   const filteredTransactions = useMemo(() => {
+    if (!transactions) return [];
+
     let filtered = transactions.filter(t => t.status === 'pago');
-    
+
     if (startDate && endDate) {
       filtered = filtered.filter(t => {
         const transactionDate = new Date(t.payment_date || t.due_date);
         return transactionDate >= new Date(startDate) && transactionDate <= new Date(endDate);
       });
     }
-    
+
     return filtered;
   }, [transactions, startDate, endDate]);
 
   const dreData = useMemo(() => {
+    if (!chartAccounts) {
+      return {
+        receitaBruta: 0,
+        receitaLiquida: 0,
+        custosTotal: 0,
+        resultadoBruto: 0,
+        despesasVendas: 0,
+        despesasAdministrativas: 0,
+        despesasFinanceiras: 0,
+        outrasDespesas: 0,
+        despesasOperacionais: 0,
+        resultadoOperacional: 0,
+        resultadoLiquido: 0,
+        revenuesByAccount: {},
+        expensesByCategory: {},
+        margemBruta: 0,
+        margemOperacional: 0,
+        margemLiquida: 0,
+      };
+    }
+
     const revenues = filteredTransactions.filter(t => t.transaction_type === 'entrada');
     const expenses = filteredTransactions.filter(t => t.transaction_type === 'saida');
-    
-    const totalRevenues = revenues.reduce((sum, t) => sum + Number(t.amount), 0);
-    const totalExpenses = expenses.reduce((sum, t) => sum + Number(t.amount), 0);
-    
+
+    // Agrupar receitas por conta contábil
     const revenuesByAccount = revenues.reduce((acc, t) => {
       const accountId = t.chart_account_id;
       if (accountId) {
         const account = chartAccounts.find(a => a.id === accountId);
         if (account) {
-          acc[account.nome] = (acc[account.nome] || 0) + Number(t.amount);
+          const key = account.codigo ? `${account.codigo} - ${account.nome}` : account.nome;
+          acc[key] = (acc[key] || 0) + Number(t.amount);
         }
       }
       return acc;
     }, {} as Record<string, number>);
-    
-    const expensesByAccount = expenses.reduce((acc, t) => {
+
+    // Categorizar despesas por tipo
+    const categorizeExpense = (accountName: string) => {
+      const name = accountName.toLowerCase();
+      if (name.includes('custo') || name.includes('cmv') || name.includes('csv')) {
+        return 'custos';
+      } else if (name.includes('venda') || name.includes('comercial') || name.includes('marketing')) {
+        return 'vendas';
+      } else if (name.includes('administrativa') || name.includes('administra')) {
+        return 'administrativas';
+      } else if (name.includes('financeira') || name.includes('juros') || name.includes('tarifa')) {
+        return 'financeiras';
+      } else {
+        return 'outras';
+      }
+    };
+
+    const expensesByCategory = expenses.reduce((acc, t) => {
       const accountId = t.chart_account_id;
       if (accountId) {
         const account = chartAccounts.find(a => a.id === accountId);
         if (account) {
-          acc[account.nome] = (acc[account.nome] || 0) + Number(t.amount);
+          const category = categorizeExpense(account.nome);
+          const key = account.codigo ? `${account.codigo} - ${account.nome}` : account.nome;
+
+          if (!acc[category]) {
+            acc[category] = {};
+          }
+          acc[category][key] = (acc[category][key] || 0) + Number(t.amount);
         }
       }
       return acc;
-    }, {} as Record<string, number>);
-    
+    }, {} as Record<string, Record<string, number>>);
+
+    // Calcular totais
+    const receitaBruta = Object.values(revenuesByAccount).reduce((sum, v) => sum + v, 0);
+    const custosTotal = Object.values(expensesByCategory.custos || {}).reduce((sum, v) => sum + v, 0);
+    const despesasVendas = Object.values(expensesByCategory.vendas || {}).reduce((sum, v) => sum + v, 0);
+    const despesasAdministrativas = Object.values(expensesByCategory.administrativas || {}).reduce((sum, v) => sum + v, 0);
+    const despesasFinanceiras = Object.values(expensesByCategory.financeiras || {}).reduce((sum, v) => sum + v, 0);
+    const outrasDespesas = Object.values(expensesByCategory.outras || {}).reduce((sum, v) => sum + v, 0);
+
+    const receitaLiquida = receitaBruta; // Simplificado - em um sistema real, subtrairia deduções
+    const resultadoBruto = receitaLiquida - custosTotal;
+    const despesasOperacionais = despesasVendas + despesasAdministrativas + despesasFinanceiras + outrasDespesas;
+    const resultadoOperacional = resultadoBruto - despesasOperacionais;
+    const resultadoLiquido = resultadoOperacional;
+
     return {
-      totalRevenues,
-      totalExpenses,
-      netResult: totalRevenues - totalExpenses,
+      receitaBruta,
+      receitaLiquida,
+      custosTotal,
+      resultadoBruto,
+      despesasVendas,
+      despesasAdministrativas,
+      despesasFinanceiras,
+      outrasDespesas,
+      despesasOperacionais,
+      resultadoOperacional,
+      resultadoLiquido,
       revenuesByAccount,
-      expensesByAccount,
+      expensesByCategory,
+      margemBruta: receitaLiquida > 0 ? (resultadoBruto / receitaLiquida) * 100 : 0,
+      margemOperacional: receitaLiquida > 0 ? (resultadoOperacional / receitaLiquida) * 100 : 0,
+      margemLiquida: receitaLiquida > 0 ? (resultadoLiquido / receitaLiquida) * 100 : 0,
     };
   }, [filteredTransactions, chartAccounts]);
 
   const balanceteData = useMemo(() => {
+    if (!chartAccounts) return [];
+
     const accountBalances = {} as Record<string, { debit: number; credit: number; name: string; code?: string }>;
-    
+
     filteredTransactions.forEach(transaction => {
       const accountId = transaction.chart_account_id;
       if (accountId) {
@@ -89,7 +172,7 @@ export default function Reports() {
               code: account.codigo,
             };
           }
-          
+
           const amount = Number(transaction.amount);
           if (transaction.transaction_type === 'entrada') {
             if (account.tipo === 'receita') {
@@ -107,7 +190,7 @@ export default function Reports() {
         }
       }
     });
-    
+
     return Object.entries(accountBalances).map(([id, data]) => ({
       id,
       ...data,
@@ -124,24 +207,55 @@ export default function Reports() {
 
   const exportDRE = () => {
     const dreExportData = [
-      { Descrição: 'RECEITAS', Valor: '' },
+      { Descrição: `DEMONSTRAÇÃO DO RESULTADO DO EXERCÍCIO - ${selectedYear}`, Valor: '', Percentual: '' },
+      { Descrição: '', Valor: '', Percentual: '' },
+      { Descrição: 'RECEITA BRUTA DE VENDAS', Valor: '', Percentual: '' },
       ...Object.entries(dreData.revenuesByAccount).map(([account, value]) => ({
         Descrição: `  ${account}`,
         Valor: value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+        Percentual: `${((value / dreData.receitaBruta) * 100).toFixed(2)}%`,
       })),
-      { Descrição: 'Total de Receitas', Valor: dreData.totalRevenues.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
-      { Descrição: '', Valor: '' },
-      { Descrição: 'DESPESAS', Valor: '' },
-      ...Object.entries(dreData.expensesByAccount).map(([account, value]) => ({
+      { Descrição: '(=) RECEITA LÍQUIDA', Valor: dreData.receitaLiquida.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), Percentual: '100.00%' },
+      { Descrição: '', Valor: '', Percentual: '' },
+      { Descrição: '(-) CUSTOS DAS VENDAS', Valor: '', Percentual: '' },
+      ...Object.entries(dreData.expensesByCategory.custos || {}).map(([account, value]) => ({
         Descrição: `  ${account}`,
         Valor: value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+        Percentual: `${((value / dreData.receitaLiquida) * 100).toFixed(2)}%`,
       })),
-      { Descrição: 'Total de Despesas', Valor: dreData.totalExpenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
-      { Descrição: '', Valor: '' },
-      { Descrição: 'RESULTADO LÍQUIDO', Valor: dreData.netResult.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
+      { Descrição: '(=) RESULTADO BRUTO', Valor: dreData.resultadoBruto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), Percentual: `${dreData.margemBruta.toFixed(2)}%` },
+      { Descrição: '', Valor: '', Percentual: '' },
+      { Descrição: '(-) DESPESAS OPERACIONAIS', Valor: '', Percentual: '' },
+      { Descrição: 'Despesas com Vendas', Valor: '', Percentual: '' },
+      ...Object.entries(dreData.expensesByCategory.vendas || {}).map(([account, value]) => ({
+        Descrição: `  ${account}`,
+        Valor: value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+        Percentual: `${((value / dreData.receitaLiquida) * 100).toFixed(2)}%`,
+      })),
+      { Descrição: 'Despesas Administrativas', Valor: '', Percentual: '' },
+      ...Object.entries(dreData.expensesByCategory.administrativas || {}).map(([account, value]) => ({
+        Descrição: `  ${account}`,
+        Valor: value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+        Percentual: `${((value / dreData.receitaLiquida) * 100).toFixed(2)}%`,
+      })),
+      { Descrição: 'Despesas Financeiras', Valor: '', Percentual: '' },
+      ...Object.entries(dreData.expensesByCategory.financeiras || {}).map(([account, value]) => ({
+        Descrição: `  ${account}`,
+        Valor: value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+        Percentual: `${((value / dreData.receitaLiquida) * 100).toFixed(2)}%`,
+      })),
+      { Descrição: 'Outras Despesas', Valor: '', Percentual: '' },
+      ...Object.entries(dreData.expensesByCategory.outras || {}).map(([account, value]) => ({
+        Descrição: `  ${account}`,
+        Valor: value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+        Percentual: `${((value / dreData.receitaLiquida) * 100).toFixed(2)}%`,
+      })),
+      { Descrição: '(=) RESULTADO OPERACIONAL', Valor: dreData.resultadoOperacional.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), Percentual: `${dreData.margemOperacional.toFixed(2)}%` },
+      { Descrição: '', Valor: '', Percentual: '' },
+      { Descrição: '(=) RESULTADO LÍQUIDO DO EXERCÍCIO', Valor: dreData.resultadoLiquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), Percentual: `${dreData.margemLiquida.toFixed(2)}%` },
     ];
-    
-    exportToExcel(dreExportData, `DRE_${format(new Date(), 'yyyy-MM-dd')}`, 'DRE');
+
+    exportToExcel(dreExportData, `DRE_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}`, 'DRE');
   };
 
   const exportBalancete = () => {
@@ -181,14 +295,32 @@ export default function Reports() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <Label htmlFor="year">Ano do Exercício</Label>
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label htmlFor="start-date">Data Inicial</Label>
               <Input
                 id="start-date"
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setSelectedPeriod('custom');
+                }}
               />
             </div>
             <div>
@@ -197,7 +329,10 @@ export default function Reports() {
                 id="end-date"
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setSelectedPeriod('custom');
+                }}
               />
             </div>
             <div>
@@ -207,9 +342,7 @@ export default function Reports() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="month">Este Mês</SelectItem>
-                  <SelectItem value="quarter">Este Trimestre</SelectItem>
-                  <SelectItem value="year">Este Ano</SelectItem>
+                  <SelectItem value="year">Ano Completo</SelectItem>
                   <SelectItem value="custom">Período Personalizado</SelectItem>
                 </SelectContent>
               </Select>
@@ -237,61 +370,220 @@ export default function Reports() {
         <TabsContent value="dre">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Demonstração do Resultado do Exercício (DRE)</CardTitle>
+              <div>
+                <CardTitle>Demonstração do Resultado do Exercício (DRE)</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Exercício: {selectedYear} | Período: {startDate && format(new Date(startDate), 'dd/MM/yyyy', { locale: ptBR })} a {endDate && format(new Date(endDate), 'dd/MM/yyyy', { locale: ptBR })}
+                </p>
+              </div>
               <Button onClick={exportDRE} variant="outline">
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
                 Exportar Excel
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">RECEITAS</h3>
-                  <div className="space-y-2">
-                    {Object.entries(dreData.revenuesByAccount).map(([account, value]) => (
-                      <div key={account} className="flex justify-between">
-                        <span className="ml-4">{account}</span>
-                        <span className="font-medium text-green-600">
-                          {value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between border-t pt-2 font-semibold">
-                      <span>Total de Receitas</span>
-                      <span className="text-green-600">
-                        {dreData.totalRevenues.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[60%]">Descrição</TableHead>
+                    <TableHead className="text-right w-[25%]">Valor (R$)</TableHead>
+                    <TableHead className="text-right w-[15%]">AV (%)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {/* RECEITA BRUTA */}
+                  <TableRow className="bg-muted/50">
+                    <TableCell className="font-bold">RECEITA BRUTA DE VENDAS</TableCell>
+                    <TableCell></TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
+                  {Object.entries(dreData.revenuesByAccount).map(([account, value]) => (
+                    <TableRow key={account}>
+                      <TableCell className="pl-8">{account}</TableCell>
+                      <TableCell className="text-right text-green-600">
+                        {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {((value / dreData.receitaBruta) * 100).toFixed(2)}%
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="font-bold border-t-2">
+                    <TableCell>(=) RECEITA LÍQUIDA</TableCell>
+                    <TableCell className="text-right text-green-600">
+                      {dreData.receitaLiquida.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right">100.00%</TableCell>
+                  </TableRow>
 
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">DESPESAS</h3>
-                  <div className="space-y-2">
-                    {Object.entries(dreData.expensesByAccount).map(([account, value]) => (
-                      <div key={account} className="flex justify-between">
-                        <span className="ml-4">{account}</span>
-                        <span className="font-medium text-red-600">
-                          {value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between border-t pt-2 font-semibold">
-                      <span>Total de Despesas</span>
-                      <span className="text-red-600">
-                        {dreData.totalExpenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                  {/* CUSTOS */}
+                  {Object.keys(dreData.expensesByCategory.custos || {}).length > 0 && (
+                    <>
+                      <TableRow className="bg-muted/50">
+                        <TableCell className="font-bold">(-) CUSTOS DAS VENDAS</TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+                      {Object.entries(dreData.expensesByCategory.custos || {}).map(([account, value]) => (
+                        <TableRow key={account}>
+                          <TableCell className="pl-8">{account}</TableCell>
+                          <TableCell className="text-right text-red-600">
+                            ({value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {((value / dreData.receitaLiquida) * 100).toFixed(2)}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </>
+                  )}
+                  <TableRow className="font-bold border-t-2">
+                    <TableCell>(=) RESULTADO BRUTO</TableCell>
+                    <TableCell className={`text-right ${dreData.resultadoBruto >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {dreData.resultadoBruto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right font-bold">
+                      {dreData.margemBruta.toFixed(2)}%
+                    </TableCell>
+                  </TableRow>
 
-                <div className="border-t pt-4">
-                  <div className="flex justify-between text-xl font-bold">
-                    <span>RESULTADO LÍQUIDO</span>
-                    <span className={dreData.netResult >= 0 ? 'text-green-600' : 'text-red-600'}>
-                      {dreData.netResult.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </span>
-                  </div>
+                  {/* DESPESAS OPERACIONAIS */}
+                  <TableRow className="bg-muted/50">
+                    <TableCell className="font-bold">(-) DESPESAS OPERACIONAIS</TableCell>
+                    <TableCell></TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
+
+                  {/* Despesas com Vendas */}
+                  {Object.keys(dreData.expensesByCategory.vendas || {}).length > 0 && (
+                    <>
+                      <TableRow className="bg-muted/30">
+                        <TableCell className="pl-4 font-semibold">Despesas com Vendas</TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+                      {Object.entries(dreData.expensesByCategory.vendas || {}).map(([account, value]) => (
+                        <TableRow key={account}>
+                          <TableCell className="pl-8">{account}</TableCell>
+                          <TableCell className="text-right text-red-600">
+                            ({value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {((value / dreData.receitaLiquida) * 100).toFixed(2)}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Despesas Administrativas */}
+                  {Object.keys(dreData.expensesByCategory.administrativas || {}).length > 0 && (
+                    <>
+                      <TableRow className="bg-muted/30">
+                        <TableCell className="pl-4 font-semibold">Despesas Administrativas</TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+                      {Object.entries(dreData.expensesByCategory.administrativas || {}).map(([account, value]) => (
+                        <TableRow key={account}>
+                          <TableCell className="pl-8">{account}</TableCell>
+                          <TableCell className="text-right text-red-600">
+                            ({value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {((value / dreData.receitaLiquida) * 100).toFixed(2)}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Despesas Financeiras */}
+                  {Object.keys(dreData.expensesByCategory.financeiras || {}).length > 0 && (
+                    <>
+                      <TableRow className="bg-muted/30">
+                        <TableCell className="pl-4 font-semibold">Despesas Financeiras</TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+                      {Object.entries(dreData.expensesByCategory.financeiras || {}).map(([account, value]) => (
+                        <TableRow key={account}>
+                          <TableCell className="pl-8">{account}</TableCell>
+                          <TableCell className="text-right text-red-600">
+                            ({value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {((value / dreData.receitaLiquida) * 100).toFixed(2)}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Outras Despesas */}
+                  {Object.keys(dreData.expensesByCategory.outras || {}).length > 0 && (
+                    <>
+                      <TableRow className="bg-muted/30">
+                        <TableCell className="pl-4 font-semibold">Outras Despesas Operacionais</TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+                      {Object.entries(dreData.expensesByCategory.outras || {}).map(([account, value]) => (
+                        <TableRow key={account}>
+                          <TableCell className="pl-8">{account}</TableCell>
+                          <TableCell className="text-right text-red-600">
+                            ({value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {((value / dreData.receitaLiquida) * 100).toFixed(2)}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </>
+                  )}
+
+                  <TableRow className="font-bold border-t-2">
+                    <TableCell>(=) RESULTADO OPERACIONAL</TableCell>
+                    <TableCell className={`text-right ${dreData.resultadoOperacional >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {dreData.resultadoOperacional.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right font-bold">
+                      {dreData.margemOperacional.toFixed(2)}%
+                    </TableCell>
+                  </TableRow>
+
+                  {/* RESULTADO LÍQUIDO */}
+                  <TableRow className="font-bold border-t-4 bg-muted/50 text-lg">
+                    <TableCell>(=) RESULTADO LÍQUIDO DO EXERCÍCIO</TableCell>
+                    <TableCell className={`text-right ${dreData.resultadoLiquido >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {dreData.resultadoLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right font-bold">
+                      {dreData.margemLiquida.toFixed(2)}%
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+
+              {/* Indicadores Adicionais */}
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground mb-1">Margem Bruta</p>
+                  <p className={`text-2xl font-bold ${dreData.margemBruta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {dreData.margemBruta.toFixed(2)}%
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground mb-1">Margem Operacional</p>
+                  <p className={`text-2xl font-bold ${dreData.margemOperacional >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {dreData.margemOperacional.toFixed(2)}%
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground mb-1">Margem Líquida</p>
+                  <p className={`text-2xl font-bold ${dreData.margemLiquida >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {dreData.margemLiquida.toFixed(2)}%
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -344,24 +636,24 @@ export default function Reports() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Receitas Totais</CardTitle>
+                <CardTitle className="text-sm font-medium">Receita Líquida</CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">
-                  {dreData.totalRevenues.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  {dreData.receitaLiquida.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Despesas Totais</CardTitle>
+                <CardTitle className="text-sm font-medium">Despesas Operacionais</CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-red-600">
-                  {dreData.totalExpenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  {(dreData.despesasOperacionais + dreData.custosTotal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </div>
               </CardContent>
             </Card>
@@ -372,8 +664,8 @@ export default function Reports() {
                 <PieChart className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${dreData.netResult >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {dreData.netResult.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                <div className={`text-2xl font-bold ${dreData.resultadoLiquido >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {dreData.resultadoLiquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </div>
               </CardContent>
             </Card>
@@ -384,8 +676,8 @@ export default function Reports() {
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${dreData.netResult >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {dreData.totalRevenues > 0 ? ((dreData.netResult / dreData.totalRevenues) * 100).toFixed(1) : '0.0'}%
+                <div className={`text-2xl font-bold ${dreData.resultadoLiquido >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {dreData.margemLiquida.toFixed(1)}%
                 </div>
               </CardContent>
             </Card>

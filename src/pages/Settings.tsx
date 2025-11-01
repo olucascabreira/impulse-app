@@ -2,13 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { 
-  User, 
-  Building2, 
-  Bell, 
-  Palette, 
-  Shield, 
-  Save, 
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  User,
+  Building2,
+  Bell,
+  Palette,
+  Shield,
+  Save,
   Key,
   Mail,
   Phone,
@@ -24,13 +28,18 @@ import {
   EyeOff,
   Image,
   Upload,
-  Camera
+  Camera,
+  Send,
+  Server,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompanies } from '@/hooks/use-companies';
+import { useNotificationPreferences } from '@/hooks/use-notification-preferences';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { EmailDiagnostic } from '@/components/email/EmailDiagnostic';
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -1371,10 +1380,46 @@ const UserManagement = () => {
 
 // Notification Settings Component
 const NotificationSettings = () => {
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [dueDateAlerts, setDueDateAlerts] = useState(true);
-  const [monthlyReports, setMonthlyReports] = useState(false);
-  const [appNotifications, setAppNotifications] = useState(true);
+  const {
+    preferences,
+    emailConfig,
+    loading,
+    saving,
+    savePreferences,
+    saveEmailConfiguration,
+    testEmailConfiguration,
+    processEmailQueue,
+  } = useNotificationPreferences();
+
+  const [showEmailConfig, setShowEmailConfig] = useState(false);
+  const [localConfig, setLocalConfig] = useState<any>({});
+
+  useEffect(() => {
+    if (emailConfig) {
+      setLocalConfig(emailConfig);
+    }
+  }, [emailConfig]);
+
+  const handleSavePreferences = async (field: string, value: any) => {
+    await savePreferences({ [field]: value });
+  };
+
+  const handleSaveEmailConfig = async () => {
+    await saveEmailConfiguration(localConfig);
+    setShowEmailConfig(false);
+  };
+
+  const handleTestEmail = async () => {
+    await testEmailConfiguration();
+  };
+
+  const handleProcessQueue = async () => {
+    await processEmailQueue();
+  };
+
+  if (loading) {
+    return <div className="text-center py-8">Carregando configurações...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -1384,9 +1429,10 @@ const NotificationSettings = () => {
           Escolha como e quando você deseja receber notificações.
         </p>
       </div>
-      
+
       <Separator />
-      
+
+      {/* Preferências de Notificação */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
@@ -1395,20 +1441,13 @@ const NotificationSettings = () => {
               Receba atualizações importantes por email
             </p>
           </div>
-          <Button 
-            variant={emailNotifications ? "default" : "outline"} 
-            size="sm"
-            onClick={() => setEmailNotifications(!emailNotifications)}
-          >
-            {emailNotifications ? (
-              <>
-                <Check className="mr-2 h-4 w-4" />
-                Ativo
-              </>
-            ) : "Ativar"}
-          </Button>
+          <Switch
+            checked={preferences.email_notifications}
+            onCheckedChange={(checked) => handleSavePreferences('email_notifications', checked)}
+            disabled={saving}
+          />
         </div>
-        
+
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium">Alertas de Vencimento</p>
@@ -1416,41 +1455,49 @@ const NotificationSettings = () => {
               Notificações sobre contas a pagar/receber próximas do vencimento
             </p>
           </div>
-          <Button 
-            variant={dueDateAlerts ? "default" : "outline"} 
-            size="sm"
-            onClick={() => setDueDateAlerts(!dueDateAlerts)}
-          >
-            {dueDateAlerts ? (
-              <>
-                <Check className="mr-2 h-4 w-4" />
-                Ativo
-              </>
-            ) : "Ativar"}
-          </Button>
+          <Switch
+            checked={preferences.due_date_alerts}
+            onCheckedChange={(checked) => handleSavePreferences('due_date_alerts', checked)}
+            disabled={saving}
+          />
         </div>
-        
+
+        {/* Dias antes do vencimento */}
+        {preferences.due_date_alerts && (
+          <div className="ml-6 space-y-2">
+            <Label htmlFor="days-before-due">Dias de antecedência para alertas</Label>
+            <div className="flex items-center gap-4">
+              <Input
+                id="days-before-due"
+                type="number"
+                min={1}
+                max={30}
+                value={preferences.days_before_due}
+                onChange={(e) => handleSavePreferences('days_before_due', parseInt(e.target.value))}
+                className="w-24"
+                disabled={saving}
+              />
+              <span className="text-sm text-muted-foreground">
+                Receber alertas {preferences.days_before_due} dia(s) antes do vencimento
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium">Relatórios Mensais</p>
             <p className="text-sm text-muted-foreground">
-              Receba relatórios financeiros mensais
+              Receba relatórios financeiros mensais por email
             </p>
           </div>
-          <Button 
-            variant={monthlyReports ? "default" : "outline"} 
-            size="sm"
-            onClick={() => setMonthlyReports(!monthlyReports)}
-          >
-            {monthlyReports ? (
-              <>
-                <Check className="mr-2 h-4 w-4" />
-                Ativo
-              </>
-            ) : "Ativar"}
-          </Button>
+          <Switch
+            checked={preferences.monthly_reports}
+            onCheckedChange={(checked) => handleSavePreferences('monthly_reports', checked)}
+            disabled={saving}
+          />
         </div>
-        
+
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium">Notificações no App</p>
@@ -1458,19 +1505,266 @@ const NotificationSettings = () => {
               Receba notificações dentro do aplicativo
             </p>
           </div>
-          <Button 
-            variant={appNotifications ? "default" : "outline"} 
-            size="sm"
-            onClick={() => setAppNotifications(!appNotifications)}
+          <Switch
+            checked={preferences.app_notifications}
+            onCheckedChange={(checked) => handleSavePreferences('app_notifications', checked)}
+            disabled={saving}
+          />
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Configuração de Email */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-sm font-medium">Provedor de Email</h4>
+            <p className="text-sm text-muted-foreground">
+              Configure o serviço de envio de emails
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setShowEmailConfig(!showEmailConfig)}
           >
-            {appNotifications ? (
-              <>
-                <Check className="mr-2 h-4 w-4" />
-                Ativo
-              </>
-            ) : "Ativar"}
+            {showEmailConfig ? 'Ocultar' : 'Configurar'}
           </Button>
         </div>
+
+        {showEmailConfig && (
+          <Card className="p-6">
+            <div className="space-y-4">
+              {/* Seletor de Provedor */}
+              <div className="space-y-2">
+                <Label htmlFor="provider">Provedor de Email</Label>
+                <Select
+                  value={localConfig.active_provider || 'smtp'}
+                  onValueChange={(value) => setLocalConfig({ ...localConfig, active_provider: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sendgrid">
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4" />
+                        SendGrid
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="smtp">
+                      <div className="flex items-center gap-2">
+                        <Server className="h-4 w-4" />
+                        SMTP (Hostinger/Outro)
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="resend">
+                      <div className="flex items-center gap-2">
+                        <Send className="h-4 w-4" />
+                        Resend
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Separator />
+
+              {/* Configuração SendGrid */}
+              {localConfig.active_provider === 'sendgrid' && (
+                <div className="space-y-4">
+                  <h5 className="font-medium">Configurações SendGrid</h5>
+                  <div className="space-y-2">
+                    <Label htmlFor="sendgrid-api-key">API Key</Label>
+                    <Input
+                      id="sendgrid-api-key"
+                      type="password"
+                      placeholder="SG.xxxxxxxxxxxxxxxx"
+                      value={localConfig.sendgrid_api_key || ''}
+                      onChange={(e) => setLocalConfig({ ...localConfig, sendgrid_api_key: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sendgrid-from-email">Email Remetente</Label>
+                    <Input
+                      id="sendgrid-from-email"
+                      type="email"
+                      placeholder="contato@empresa.com"
+                      value={localConfig.sendgrid_from_email || ''}
+                      onChange={(e) => setLocalConfig({ ...localConfig, sendgrid_from_email: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sendgrid-from-name">Nome Remetente</Label>
+                    <Input
+                      id="sendgrid-from-name"
+                      placeholder="Impulse Financeiro"
+                      value={localConfig.sendgrid_from_name || ''}
+                      onChange={(e) => setLocalConfig({ ...localConfig, sendgrid_from_name: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Configuração SMTP */}
+              {localConfig.active_provider === 'smtp' && (
+                <div className="space-y-4">
+                  <h5 className="font-medium">Configurações SMTP</h5>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="smtp-host">Host SMTP</Label>
+                      <Input
+                        id="smtp-host"
+                        placeholder="smtp.hostinger.com"
+                        value={localConfig.smtp_host || ''}
+                        onChange={(e) => setLocalConfig({ ...localConfig, smtp_host: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="smtp-port">Porta</Label>
+                      <Input
+                        id="smtp-port"
+                        type="number"
+                        placeholder="587"
+                        value={localConfig.smtp_port || 587}
+                        onChange={(e) => setLocalConfig({ ...localConfig, smtp_port: parseInt(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="smtp-user">Usuário</Label>
+                    <Input
+                      id="smtp-user"
+                      type="email"
+                      placeholder="seu-email@dominio.com"
+                      value={localConfig.smtp_user || ''}
+                      onChange={(e) => setLocalConfig({ ...localConfig, smtp_user: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="smtp-password">Senha</Label>
+                    <Input
+                      id="smtp-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={localConfig.smtp_password || ''}
+                      onChange={(e) => setLocalConfig({ ...localConfig, smtp_password: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="smtp-from-email">Email Remetente</Label>
+                    <Input
+                      id="smtp-from-email"
+                      type="email"
+                      placeholder="contato@seudominio.com"
+                      value={localConfig.smtp_from_email || ''}
+                      onChange={(e) => setLocalConfig({ ...localConfig, smtp_from_email: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="smtp-from-name">Nome Remetente</Label>
+                    <Input
+                      id="smtp-from-name"
+                      placeholder="Impulse Financeiro"
+                      value={localConfig.smtp_from_name || ''}
+                      onChange={(e) => setLocalConfig({ ...localConfig, smtp_from_name: e.target.value })}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="smtp-secure"
+                      checked={localConfig.smtp_secure || false}
+                      onCheckedChange={(checked) => setLocalConfig({ ...localConfig, smtp_secure: checked })}
+                    />
+                    <Label htmlFor="smtp-secure">
+                      Usar SSL (porta 465)
+                      <span className="text-muted-foreground text-xs ml-2">
+                        Desative para TLS (porta 587)
+                      </span>
+                    </Label>
+                  </div>
+                </div>
+              )}
+
+              {/* Configuração Resend */}
+              {localConfig.active_provider === 'resend' && (
+                <div className="space-y-4">
+                  <h5 className="font-medium">Configurações Resend</h5>
+                  <div className="space-y-2">
+                    <Label htmlFor="resend-api-key">API Key</Label>
+                    <Input
+                      id="resend-api-key"
+                      type="password"
+                      placeholder="re_xxxxxxxxxxxxxxxx"
+                      value={localConfig.resend_api_key || ''}
+                      onChange={(e) => setLocalConfig({ ...localConfig, resend_api_key: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="resend-from-email">Email Remetente</Label>
+                    <Input
+                      id="resend-from-email"
+                      type="email"
+                      placeholder="contato@empresa.com"
+                      value={localConfig.resend_from_email || ''}
+                      onChange={(e) => setLocalConfig({ ...localConfig, resend_from_email: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="resend-from-name">Nome Remetente</Label>
+                    <Input
+                      id="resend-from-name"
+                      placeholder="Impulse Financeiro"
+                      value={localConfig.resend_from_name || ''}
+                      onChange={(e) => setLocalConfig({ ...localConfig, resend_from_name: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+
+              {/* Botões de Ação */}
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  onClick={handleSaveEmailConfig}
+                  disabled={saving}
+                >
+                  {saving ? 'Salvando...' : 'Salvar Configurações'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleTestEmail}
+                  disabled={saving || !emailConfig}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Enviar Email de Teste
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={handleProcessQueue}
+                  disabled={saving}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Processar Fila de Emails
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+      </div>
+
+      <Separator />
+
+      {/* Diagnóstico do Sistema */}
+      <div className="space-y-4">
+        <div>
+          <h4 className="text-sm font-medium">Diagnóstico do Sistema</h4>
+          <p className="text-sm text-muted-foreground">
+            Verifique se o sistema de email está configurado corretamente
+          </p>
+        </div>
+        <EmailDiagnostic />
       </div>
     </div>
   );
