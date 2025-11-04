@@ -16,7 +16,7 @@ import { useChartAccounts } from '@/hooks/use-chart-accounts';
 import { useContacts } from '@/hooks/use-contacts';
 import { useCompanies } from '@/hooks/use-companies';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
-import { format, parse, setMonth, setYear, startOfMonth, endOfMonth, isSameMonth, parseISO } from 'date-fns';
+import { format, parse, setMonth, setYear, startOfMonth, endOfMonth, isSameMonth, parseISO, subMonths, startOfYear, endOfYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 // Helper function to format payment method
@@ -106,12 +106,13 @@ export default function CashFlow() {
     }
 
     return filteredTransactions.filter(transaction => {
-      if (!transaction.due_date) return true;
-      
+      // Exclude transactions without due_date when date filter is active
+      if (!transaction.due_date) return false;
+
       const transactionDate = parseISO(transaction.due_date);
       const fromDate = dateRange.from ? new Date(dateRange.from) : new Date(0); // Beginning of time
       const toDate = dateRange.to ? new Date(dateRange.to) : new Date(8640000000000000); // End of time
-      
+
       return transactionDate >= fromDate && transactionDate <= toDate;
     });
   }, [filteredTransactions, dateRange]);
@@ -189,12 +190,62 @@ export default function CashFlow() {
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm">
                 <Calendar className="h-4 w-4 mr-2" />
-                {dateRange.from && dateRange.to 
-                  ? `${format(dateRange.from, "MMMM yyyy", { locale: ptBR })}` 
-                  : "Selecionar mês"}
+                {dateRange.from && dateRange.to
+                  ? isSameMonth(dateRange.from, dateRange.to)
+                    ? format(dateRange.from, "MMMM yyyy", { locale: ptBR })
+                    : `${format(dateRange.from, "dd/MM/yy", { locale: ptBR })} - ${format(dateRange.to, "dd/MM/yy", { locale: ptBR })}`
+                  : "Selecionar período"}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
+              <div className="p-3 border-b">
+                <p className="text-sm font-medium mb-2">Atalhos rápidos</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDateRange({
+                      from: startOfMonth(new Date()),
+                      to: endOfMonth(new Date())
+                    })}
+                  >
+                    Este mês
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const lastMonth = subMonths(new Date(), 1);
+                      setDateRange({
+                        from: startOfMonth(lastMonth),
+                        to: endOfMonth(lastMonth)
+                      });
+                    }}
+                  >
+                    Mês passado
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDateRange({
+                      from: startOfMonth(subMonths(new Date(), 2)),
+                      to: endOfMonth(new Date())
+                    })}
+                  >
+                    Últimos 3 meses
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDateRange({
+                      from: startOfYear(new Date()),
+                      to: endOfYear(new Date())
+                    })}
+                  >
+                    Este ano
+                  </Button>
+                </div>
+              </div>
               <CalendarComponent
                 initialFocus
                 mode="range"
@@ -333,7 +384,7 @@ export default function CashFlow() {
       {/* Transactions Table */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Transações</CardTitle>
+          <CardTitle>Transações ({filteredByDateRange.length})</CardTitle>
           {/* Column Configuration Popover */}
           <Popover>
             <PopoverTrigger asChild>

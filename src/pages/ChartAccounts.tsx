@@ -14,7 +14,7 @@ import { ChartAccountEditForm } from '@/components/companies/ChartAccountEditFor
 
 export default function ChartAccounts() {
   const { companies, currentCompany } = useCompanies();
-  const { chartAccounts, loading, deleteChartAccount } = useChartAccounts(currentCompany?.id);
+  const { chartAccounts, loading, deleteChartAccount, getAccountLevel } = useChartAccounts(currentCompany?.id);
   const [searchTerm, setSearchTerm] = useState('');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -34,8 +34,26 @@ export default function ChartAccounts() {
     await deleteChartAccount(id);
   };
 
-  const getAccountLevel = (account: any) => {
-    return account.parent_id ? 1 : 0;
+  const getAccountTypeLabel = (tipo: string) => {
+    const typeLabels: Record<string, string> = {
+      'ativo': 'Ativo',
+      'passivo': 'Passivo',
+      'patrimonio_liquido': 'Patrimônio Líquido',
+      'receita': 'Receita',
+      'despesa': 'Despesa'
+    };
+    return typeLabels[tipo] || tipo;
+  };
+
+  const getAccountTypeColor = (tipo: string) => {
+    const typeColors: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
+      'ativo': 'default',
+      'passivo': 'destructive',
+      'patrimonio_liquido': 'outline',
+      'receita': 'default',
+      'despesa': 'secondary'
+    };
+    return typeColors[tipo] || 'secondary';
   };
 
   if (!currentCompany) {
@@ -103,56 +121,70 @@ export default function ChartAccounts() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Nível</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAccounts.map((account) => (
-                  <TableRow key={account.id}>
-                    <TableCell className="font-medium">{account.codigo}</TableCell>
-                    <TableCell style={{ paddingLeft: `${getAccountLevel(account) * 24 + 16}px` }}>
-                      {account.nome}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={account.tipo === 'receita' ? 'default' : 'secondary'}>
-                        {account.tipo === 'receita' ? 'Receita' : 'Despesa'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{getAccountLevel(account) === 0 ? 'Principal' : 'Subconta'}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(account)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Tem certeza que deseja excluir a conta "{account.nome}"? Esta ação não pode ser desfeita.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(account.id)}>
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filteredAccounts.map((account) => {
+                  const level = getAccountLevel(account);
+                  const indent = '└─ '.repeat(level);
+
+                  return (
+                    <TableRow key={account.id} className={account.status === 'inativo' ? 'opacity-50' : ''}>
+                      <TableCell className="font-medium">{account.codigo || '-'}</TableCell>
+                      <TableCell style={{ paddingLeft: `${level * 24 + 16}px` }}>
+                        <span className="text-muted-foreground">{indent}</span>
+                        {account.nome}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getAccountTypeColor(account.tipo)}>
+                          {getAccountTypeLabel(account.tipo)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {level === 0 ? 'Principal' : `Nível ${level + 1}`}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={account.status === 'ativo' ? 'default' : 'secondary'}>
+                          {account.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(account)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Tem certeza que deseja excluir a conta "{account.nome}"? Esta ação não pode ser desfeita.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(account.id)}>
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

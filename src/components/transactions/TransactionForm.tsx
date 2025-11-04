@@ -31,7 +31,7 @@ const transactionSchema = z.object({
   destination_account_id: z.string().optional(),
   contact_id: z.string().optional(),
   due_date: z.string().optional(),
-  status: z.enum(['pendente', 'pago', 'atrasado', 'transferido']).default('pendente'),
+  status: z.enum(['pendente', 'pago', 'recebido', 'atrasado', 'cancelado', 'transferido']).default('pendente'),
   payment_method: z.string().optional(),
   // Recurring transaction fields
   create_recurring: z.boolean().default(false),
@@ -149,6 +149,19 @@ export function TransactionForm({
         return;
       }
 
+      // Validate sufficient funds for saida transactions (when status is pago)
+      if (data.transaction_type === 'saida' && data.status === 'pago' && data.bank_account_id) {
+        const selectedAccount = bankAccounts.find(acc => acc.id === data.bank_account_id);
+        if (selectedAccount && selectedAccount.current_balance < amount) {
+          toast({
+            title: "Erro",
+            description: "Saldo insuficiente na conta bancária selecionada",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       const transactionData = {
         transaction_type: data.transaction_type,
         description: data.description,
@@ -244,6 +257,12 @@ export function TransactionForm({
       return [
         { value: 'pago', label: 'Pago' }, // Use 'pago' instead of 'transferido' for transfers
       ];
+    } else if (transactionType === 'entrada') {
+      return [
+        { value: 'pendente', label: 'Pendente' },
+        { value: 'recebido', label: 'Recebido' },
+        { value: 'atrasado', label: 'Atrasado' },
+      ];
     } else {
       return [
         { value: 'pendente', label: 'Pendente' },
@@ -303,7 +322,13 @@ export function TransactionForm({
                     placeholder="0,00"
                     {...field}
                     onChange={(e) => {
-                      const value = e.target.value.replace(/[^\d,]/g, '');
+                      // Remove non-numeric characters except comma
+                      let value = e.target.value.replace(/[^\d,]/g, '');
+                      // Allow only one comma
+                      const parts = value.split(',');
+                      if (parts.length > 2) {
+                        value = parts[0] + ',' + parts.slice(1).join('');
+                      }
                       field.onChange(value);
                     }}
                   />
@@ -348,7 +373,7 @@ export function TransactionForm({
                     </FormControl>
                     <SelectContent>
                       {bankAccounts
-                        .filter(account => account.id !== field.value) // Filter out the selected destination account to avoid selecting same account
+                        .filter(account => account.id !== form.getValues('destination_account_id')) // Filter out the selected destination account to avoid selecting same account
                         .map((account) => (
                           <SelectItem key={account.id} value={account.id}>
                             {account.bank_name} - {account.account_number} (Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(account.current_balance)})
@@ -394,28 +419,53 @@ export function TransactionForm({
             <FormField
               control={form.control}
               name="chart_account_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Conta do Plano</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione a conta" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {chartAccounts
-                        .filter(account => account.tipo === (transactionType === 'entrada' ? 'receita' : 'despesa'))
-                        .map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.codigo} - {account.nome}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
+              render={({ field }) => {
+                const filteredAccounts = chartAccounts.filter(account => {
+                  // Filter by transaction type
+                  if (transactionType === 'entrada') {
+                    return account.tipo === 'receita';
+                  } else if (transactionType === 'saida') {
+                    return account.tipo === 'despesa';
+                  }
+                  return false;
+                });
+
+                return (
+                  <FormItem>
+                    <FormLabel>Conta do Plano</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={
+                            filteredAccounts.length === 0
+                              ? transactionType === 'entrada'
+                                ? "Nenhuma conta de receita cadastrada"
+                                : "Nenhuma conta de despesa cadastrada"
+                              : "Selecione a conta"
+                          } />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {filteredAccounts.length === 0 ? (
+                          <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                            {transactionType === 'entrada'
+                              ? "Nenhuma conta de receita encontrada. Cadastre uma conta primeiro."
+                              : "Nenhuma conta de despesa encontrada. Cadastre uma conta primeiro."}
+                          </div>
+                        ) : (
+                          filteredAccounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.codigo ? `${account.codigo} - ` : ''}{account.nome}
+                              {account.status === 'inativo' ? ' (Inativa)' : ''}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
 
             <FormField
@@ -545,17 +595,19 @@ export function TransactionForm({
           </div>
         )}
 
-        {/* Option to create recurring transaction */}
-        <div className="flex items-center space-x-2 border-t pt-4">
-          <Switch
-            id="create-recurring"
-            checked={createRecurring}
-            onCheckedChange={setCreateRecurring}
-          />
-          <Label htmlFor="create-recurring" className="text-sm font-medium">
-            Criar transação recorrente com base nessa transação
-          </Label>
-        </div>
+        {/* Option to create recurring transaction - disabled for transfers */}
+        {transactionType !== 'transferencia' && (
+          <div className="flex items-center space-x-2 border-t pt-4">
+            <Switch
+              id="create-recurring"
+              checked={createRecurring}
+              onCheckedChange={setCreateRecurring}
+            />
+            <Label htmlFor="create-recurring" className="text-sm font-medium">
+              Criar transação recorrente com base nessa transação
+            </Label>
+          </div>
+        )}
 
         {/* Recurring transaction fields - only show when switch is on */}
         {createRecurring && (

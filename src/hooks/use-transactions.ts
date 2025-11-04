@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { parseISO, isBefore } from 'date-fns';
 
 export interface Transaction {
   id: string;
@@ -13,7 +14,7 @@ export interface Transaction {
   amount: number;
   due_date?: string;
   payment_date?: string;
-  status: 'pendente' | 'pago' | 'atrasado' | 'transferido';
+  status: 'pendente' | 'pago' | 'recebido' | 'atrasado' | 'cancelado' | 'transferido';
   payment_method?: string;
   created_at: string;
   updated_at: string;
@@ -403,12 +404,53 @@ export function useTransactions(companyId?: string, startDate?: Date, endDate?: 
     }
   };
 
-  const markAsPaid = async (id: string, paymentDate: string = new Date().toISOString().split('T')[0]) => {
-    return updateTransaction(id, { 
-      status: 'pago', 
-      payment_date: paymentDate 
+  const markAsPaid = async (id: string, transactionType: 'entrada' | 'saida' | 'transferencia', paymentDate: string = new Date().toISOString().split('T')[0]) => {
+    // Use appropriate status based on transaction type
+    const status = transactionType === 'entrada' ? 'recebido' : 'pago';
+
+    return updateTransaction(id, {
+      status,
+      payment_date: paymentDate
     });
   };
+
+  // Automatically update overdue transactions
+  const updateOverdueTransactions = async () => {
+    if (!companyId) return;
+
+    const now = new Date();
+    const overdueTransactions = transactions.filter(transaction => {
+      if (!transaction.due_date) return false;
+      if (transaction.status === 'pago' || transaction.status === 'recebido' || transaction.status === 'cancelado') return false;
+
+      const dueDate = parseISO(transaction.due_date);
+      return isBefore(dueDate, now) && transaction.status === 'pendente';
+    });
+
+    // Update each overdue transaction
+    for (const transaction of overdueTransactions) {
+      try {
+        await supabase
+          .from('transactions')
+          .update({ status: 'atrasado' })
+          .eq('id', transaction.id);
+
+        // Update local state
+        setTransactions(prev =>
+          prev.map(t => t.id === transaction.id ? { ...t, status: 'atrasado' as const } : t)
+        );
+      } catch (error) {
+        console.error('Error updating overdue transaction:', error);
+      }
+    }
+  };
+
+  // Run overdue check when transactions change
+  useEffect(() => {
+    if (!loading && transactions.length > 0) {
+      updateOverdueTransactions();
+    }
+  }, [transactions.length, loading]);
 
   return {
     transactions,

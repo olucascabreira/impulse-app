@@ -6,9 +6,11 @@ export interface ChartAccount {
   id: string;
   company_id: string;
   nome: string;
-  tipo: 'receita' | 'despesa';
+  tipo: 'ativo' | 'passivo' | 'patrimonio_liquido' | 'receita' | 'despesa';
   codigo?: string;
   parent_id?: string;
+  descricao?: string;
+  status: 'ativo' | 'inativo';
   created_at: string;
   updated_at: string;
   // Relations
@@ -136,6 +138,43 @@ export function useChartAccounts(companyId?: string) {
 
   const deleteChartAccount = async (id: string) => {
     try {
+      // First check if the account has any transactions
+      const { data: transactions, error: transactionsError } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('chart_account_id', id)
+        .limit(1);
+
+      if (transactionsError) {
+        console.error('Error checking transactions:', transactionsError);
+        toast({
+          title: "Erro ao verificar transações",
+          description: transactionsError.message,
+          variant: "destructive",
+        });
+        return { error: transactionsError };
+      }
+
+      if (transactions && transactions.length > 0) {
+        toast({
+          title: "Não é possível deletar",
+          description: "Esta conta possui transações associadas. Desative a conta ao invés de deletá-la.",
+          variant: "destructive",
+        });
+        return { error: new Error('Account has associated transactions') };
+      }
+
+      // Check if the account has children
+      const hasChildren = chartAccounts.some(acc => acc.parent_id === id);
+      if (hasChildren) {
+        toast({
+          title: "Não é possível deletar",
+          description: "Esta conta possui subcontas. Delete as subcontas primeiro.",
+          variant: "destructive",
+        });
+        return { error: new Error('Account has children') };
+      }
+
       const { error } = await supabase
         .from('chart_accounts')
         .delete()
@@ -163,8 +202,32 @@ export function useChartAccounts(companyId?: string) {
     }
   };
 
+  // Helper function to calculate account hierarchy level
+  const getAccountLevel = (account: ChartAccount): number => {
+    if (!account.parent_id) return 0;
+
+    const parent = chartAccounts.find(acc => acc.id === account.parent_id);
+    if (!parent) return 1;
+
+    return 1 + getAccountLevel(parent);
+  };
+
+  // Helper function to get full hierarchy path
+  const getAccountPath = (account: ChartAccount): string[] => {
+    if (!account.parent_id) return [account.nome];
+
+    const parent = chartAccounts.find(acc => acc.id === account.parent_id);
+    if (!parent) return [account.nome];
+
+    return [...getAccountPath(parent), account.nome];
+  };
+
   const getRevenueAccounts = () => chartAccounts.filter(acc => acc.tipo === 'receita');
   const getExpenseAccounts = () => chartAccounts.filter(acc => acc.tipo === 'despesa');
+  const getAssetAccounts = () => chartAccounts.filter(acc => acc.tipo === 'ativo');
+  const getLiabilityAccounts = () => chartAccounts.filter(acc => acc.tipo === 'passivo');
+  const getEquityAccounts = () => chartAccounts.filter(acc => acc.tipo === 'patrimonio_liquido');
+  const getActiveAccounts = () => chartAccounts.filter(acc => acc.status === 'ativo');
   const getParentAccounts = () => chartAccounts.filter(acc => !acc.parent_id);
   const getChildAccounts = (parentId: string) => chartAccounts.filter(acc => acc.parent_id === parentId);
 
@@ -176,8 +239,14 @@ export function useChartAccounts(companyId?: string) {
     deleteChartAccount,
     getRevenueAccounts,
     getExpenseAccounts,
+    getAssetAccounts,
+    getLiabilityAccounts,
+    getEquityAccounts,
+    getActiveAccounts,
     getParentAccounts,
     getChildAccounts,
+    getAccountLevel,
+    getAccountPath,
     refreshChartAccounts: fetchChartAccounts,
   };
 }

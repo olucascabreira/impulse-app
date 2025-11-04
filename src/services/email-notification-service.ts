@@ -1,6 +1,9 @@
 import { supabase } from '@/integrations/supabase/client';
 import { addDays, isAfter, isBefore, isToday, parseISO } from 'date-fns';
 
+// URL base da aplicação (pode vir de variável de ambiente)
+const APP_URL = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173');
+
 interface Transaction {
   id: string;
   description: string;
@@ -73,7 +76,7 @@ function generateDueSoonEmailTemplate(
       </div>
 
       <div style="text-align: center;">
-        <a href="${window.location.origin}/lancamentos" class="button">Ver Lançamentos</a>
+        <a href="${APP_URL}/lancamentos" class="button">Ver Lançamentos</a>
       </div>
     </div>
     <div class="footer">
@@ -139,7 +142,7 @@ function generateOverdueEmailTemplate(transactions: Transaction[], userName: str
       </div>
 
       <div style="text-align: center;">
-        <a href="${window.location.origin}/lancamentos" class="button">Regularizar Agora</a>
+        <a href="${APP_URL}/lancamentos" class="button">Regularizar Agora</a>
       </div>
     </div>
     <div class="footer">
@@ -200,7 +203,7 @@ function generateDueTodayEmailTemplate(transactions: Transaction[], userName: st
       </div>
 
       <div style="text-align: center;">
-        <a href="${window.location.origin}/lancamentos" class="button">Ver Lançamentos</a>
+        <a href="${APP_URL}/lancamentos" class="button">Ver Lançamentos</a>
       </div>
     </div>
     <div class="footer">

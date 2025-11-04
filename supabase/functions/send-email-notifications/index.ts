@@ -439,9 +439,15 @@ serve(async (req) => {
       }
     }
 
+    // Calcular totais de enviados e falhados
+    const sent = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+
     return new Response(
       JSON.stringify({
         processed: results.length,
+        sent,
+        failed,
         results,
       }),
       {

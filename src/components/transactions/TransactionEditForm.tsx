@@ -26,7 +26,7 @@ const transactionSchema = z.object({
   destination_account_id: z.string().optional(),
   contact_id: z.string().optional(),
   due_date: z.string().optional(),
-  status: z.enum(['pendente', 'pago', 'atrasado', 'transferido']),
+  status: z.enum(['pendente', 'pago', 'recebido', 'atrasado', 'cancelado', 'transferido']),
   payment_method: z.string().optional(),
 });
 
@@ -98,6 +98,28 @@ export function TransactionEditForm({
           variant: "destructive",
         });
         return;
+      }
+
+      // Validate sufficient funds for saida transactions (when status is pago)
+      // Only check if the transaction is being changed or if amount/account changed
+      if (data.transaction_type === 'saida' && data.status === 'pago' && data.bank_account_id) {
+        const selectedAccount = bankAccounts.find(acc => acc.id === data.bank_account_id);
+        if (selectedAccount) {
+          // Calculate the balance considering the original transaction value
+          const originalAmount = transaction.status === 'pago' && transaction.bank_account_id === data.bank_account_id
+            ? transaction.amount
+            : 0;
+          const availableBalance = selectedAccount.current_balance + originalAmount;
+
+          if (availableBalance < amount) {
+            toast({
+              title: "Erro",
+              description: "Saldo insuficiente na conta bancária selecionada",
+              variant: "destructive",
+            });
+            return;
+          }
+        }
       }
 
       const transactionData = {
@@ -191,11 +213,19 @@ export function TransactionEditForm({
       return [
         { value: 'pago', label: 'Pago' }, // Use 'pago' instead of 'transferido' for transfers
       ];
+    } else if (transactionType === 'entrada') {
+      return [
+        { value: 'pendente', label: 'Pendente' },
+        { value: 'recebido', label: 'Recebido' },
+        { value: 'atrasado', label: 'Atrasado' },
+        { value: 'cancelado', label: 'Cancelado' },
+      ];
     } else {
       return [
         { value: 'pendente', label: 'Pendente' },
         { value: 'pago', label: 'Pago' },
         { value: 'atrasado', label: 'Atrasado' },
+        { value: 'cancelado', label: 'Cancelado' },
       ];
     }
   };
@@ -222,7 +252,11 @@ export function TransactionEditForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Tipo de Transação</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
+                <Select
+                  onValueChange={field.onChange}
+                  value={field.value}
+                  disabled={transaction.transaction_type === 'transferencia' || transaction.destination_account_id !== null}
+                >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue />
@@ -250,7 +284,13 @@ export function TransactionEditForm({
                     placeholder="0,00"
                     {...field}
                     onChange={(e) => {
-                      const value = e.target.value.replace(/[^\d,]/g, '');
+                      // Remove non-numeric characters except comma
+                      let value = e.target.value.replace(/[^\d,]/g, '');
+                      // Allow only one comma
+                      const parts = value.split(',');
+                      if (parts.length > 2) {
+                        value = parts[0] + ',' + parts.slice(1).join('');
+                      }
                       field.onChange(value);
                     }}
                   />
@@ -295,7 +335,7 @@ export function TransactionEditForm({
                     </FormControl>
                     <SelectContent>
                       {bankAccounts
-                        .filter(account => account.id !== field.value) // Filter out the selected destination account
+                        .filter(account => account.id !== form.getValues('destination_account_id')) // Filter out the selected destination account
                         .map((account) => (
                           <SelectItem key={account.id} value={account.id}>
                             {account.bank_name} - {account.account_number} (Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(account.current_balance)})
@@ -341,28 +381,53 @@ export function TransactionEditForm({
             <FormField
               control={form.control}
               name="chart_account_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Conta do Plano</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {chartAccounts
-                        .filter(account => account.tipo === (transactionType === 'entrada' ? 'receita' : 'despesa'))
-                        .map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.codigo} - {account.nome}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
+              render={({ field }) => {
+                const filteredAccounts = chartAccounts.filter(account => {
+                  // Filter by transaction type
+                  if (transactionType === 'entrada') {
+                    return account.tipo === 'receita';
+                  } else if (transactionType === 'saida') {
+                    return account.tipo === 'despesa';
+                  }
+                  return false;
+                });
+
+                return (
+                  <FormItem>
+                    <FormLabel>Conta do Plano</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={
+                            filteredAccounts.length === 0
+                              ? transactionType === 'entrada'
+                                ? "Nenhuma conta de receita cadastrada"
+                                : "Nenhuma conta de despesa cadastrada"
+                              : "Selecione a conta"
+                          } />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {filteredAccounts.length === 0 ? (
+                          <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                            {transactionType === 'entrada'
+                              ? "Nenhuma conta de receita encontrada. Cadastre uma conta primeiro."
+                              : "Nenhuma conta de despesa encontrada. Cadastre uma conta primeiro."}
+                          </div>
+                        ) : (
+                          filteredAccounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.codigo ? `${account.codigo} - ` : ''}{account.nome}
+                              {account.status === 'inativo' ? ' (Inativa)' : ''}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
 
             <FormField
@@ -492,17 +557,19 @@ export function TransactionEditForm({
           </div>
         )}
 
-        {/* Option to create recurring transaction */}
-        <div className="flex items-center space-x-2 border-t pt-4">
-          <Switch
-            id="create-recurring"
-            checked={createRecurring}
-            onCheckedChange={setCreateRecurring}
-          />
-          <Label htmlFor="create-recurring" className="text-sm font-medium">
-            Criar transação recorrente com base nessa transação
-          </Label>
-        </div>
+        {/* Option to create recurring transaction - disabled for transfers */}
+        {transactionType !== 'transferencia' && (
+          <div className="flex items-center space-x-2 border-t pt-4">
+            <Switch
+              id="create-recurring"
+              checked={createRecurring}
+              onCheckedChange={setCreateRecurring}
+            />
+            <Label htmlFor="create-recurring" className="text-sm font-medium">
+              Criar transação recorrente com base nessa transação
+            </Label>
+          </div>
+        )}
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => form.reset()}>
