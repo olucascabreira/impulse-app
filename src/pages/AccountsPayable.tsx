@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, Calendar, CheckCircle, X, Filter, Settings } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, Calendar, CheckCircle, X, Filter, Settings, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,6 +62,10 @@ export default function AccountsPayable() {
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [viewingTransaction, setViewingTransaction] = useState<any>(null);
 
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState<string>('due_date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
   // State for date range picker in header (defaults to current month)
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined;
@@ -118,6 +122,79 @@ export default function AccountsPayable() {
       return transactionDate >= fromDate && transactionDate <= toDate;
     });
   }, [filteredTransactions, dateRange]);
+
+  // Sort transactions
+  const sortedTransactions = useMemo(() => {
+    const sorted = [...filteredByDateRange];
+
+    sorted.sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (sortColumn) {
+        case 'date':
+          aValue = a.created_at ? new Date(a.created_at).getTime() : 0;
+          bValue = b.created_at ? new Date(b.created_at).getTime() : 0;
+          break;
+        case 'description':
+          aValue = a.description.toLowerCase();
+          bValue = b.description.toLowerCase();
+          break;
+        case 'contact':
+          aValue = a.contacts?.name?.toLowerCase() || '';
+          bValue = b.contacts?.name?.toLowerCase() || '';
+          break;
+        case 'account':
+          aValue = a.chart_accounts?.nome?.toLowerCase() || '';
+          bValue = b.chart_accounts?.nome?.toLowerCase() || '';
+          break;
+        case 'payment_method':
+          aValue = a.payment_method || '';
+          bValue = b.payment_method || '';
+          break;
+        case 'value':
+          aValue = a.amount;
+          bValue = b.amount;
+          break;
+        case 'due_date':
+          aValue = a.due_date ? new Date(a.due_date).getTime() : 0;
+          bValue = b.due_date ? new Date(b.due_date).getTime() : 0;
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [filteredByDateRange, sortColumn, sortDirection]);
+
+  // Handle column sort
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Get sort icon
+  const getSortIcon = (column: string) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="ml-2 h-4 w-4" />;
+    }
+    return sortDirection === 'asc'
+      ? <ArrowUp className="ml-2 h-4 w-4" />
+      : <ArrowDown className="ml-2 h-4 w-4" />;
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -532,19 +609,75 @@ export default function AccountsPayable() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {columnVisibility.date && <TableHead>Data</TableHead>}
-                    {columnVisibility.description && <TableHead>Descrição</TableHead>}
-                    {columnVisibility.contact && <TableHead>Contato</TableHead>}
-                    {columnVisibility.account && <TableHead>Conta</TableHead>}
-                    {columnVisibility.payment_method && <TableHead>Método Pgto</TableHead>}
-                    {columnVisibility.value && <TableHead>Valor</TableHead>}
-                    {columnVisibility.due_date && <TableHead>Vencimento</TableHead>}
-                    {columnVisibility.status && <TableHead>Status</TableHead>}
+                    {columnVisibility.date && (
+                      <TableHead>
+                        <Button variant="ghost" onClick={() => handleSort('date')} className="h-8 px-2">
+                          Data
+                          {getSortIcon('date')}
+                        </Button>
+                      </TableHead>
+                    )}
+                    {columnVisibility.description && (
+                      <TableHead>
+                        <Button variant="ghost" onClick={() => handleSort('description')} className="h-8 px-2">
+                          Descrição
+                          {getSortIcon('description')}
+                        </Button>
+                      </TableHead>
+                    )}
+                    {columnVisibility.contact && (
+                      <TableHead>
+                        <Button variant="ghost" onClick={() => handleSort('contact')} className="h-8 px-2">
+                          Contato
+                          {getSortIcon('contact')}
+                        </Button>
+                      </TableHead>
+                    )}
+                    {columnVisibility.account && (
+                      <TableHead>
+                        <Button variant="ghost" onClick={() => handleSort('account')} className="h-8 px-2">
+                          Conta
+                          {getSortIcon('account')}
+                        </Button>
+                      </TableHead>
+                    )}
+                    {columnVisibility.payment_method && (
+                      <TableHead>
+                        <Button variant="ghost" onClick={() => handleSort('payment_method')} className="h-8 px-2">
+                          Método Pgto
+                          {getSortIcon('payment_method')}
+                        </Button>
+                      </TableHead>
+                    )}
+                    {columnVisibility.value && (
+                      <TableHead>
+                        <Button variant="ghost" onClick={() => handleSort('value')} className="h-8 px-2">
+                          Valor
+                          {getSortIcon('value')}
+                        </Button>
+                      </TableHead>
+                    )}
+                    {columnVisibility.due_date && (
+                      <TableHead>
+                        <Button variant="ghost" onClick={() => handleSort('due_date')} className="h-8 px-2">
+                          Vencimento
+                          {getSortIcon('due_date')}
+                        </Button>
+                      </TableHead>
+                    )}
+                    {columnVisibility.status && (
+                      <TableHead>
+                        <Button variant="ghost" onClick={() => handleSort('status')} className="h-8 px-2">
+                          Status
+                          {getSortIcon('status')}
+                        </Button>
+                      </TableHead>
+                    )}
                     {columnVisibility.actions && <TableHead className="w-[120px]">Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredByDateRange.map((transaction) => (
+                  {sortedTransactions.map((transaction) => (
                     <TableRow key={transaction.id}>
                       {columnVisibility.date && (
                         <TableCell>
