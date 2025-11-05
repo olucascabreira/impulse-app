@@ -28,9 +28,9 @@ export function FinancialSummary({ transactions, selectedDate }: FinancialSummar
       );
     });
 
-    // For receitas, 'pago' counts as realized
+    // For receitas, 'pago' or 'recebido' counts as realized
     const received = currentMonthTransactions
-      .filter(t => t.status === 'pago')
+      .filter(t => t.status === 'pago' || t.status === 'recebido')
       .reduce((sum, t) => sum + t.amount, 0);
 
     const pending = currentMonthTransactions

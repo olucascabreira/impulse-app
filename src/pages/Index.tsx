@@ -77,13 +77,13 @@ const Index = () => {
       );
     });
 
-    // For receitas (incomes), we consider 'pago' as realized
+    // For receitas (incomes), we consider 'pago' or 'recebido' as realized
     const monthlyRevenue = monthlyTransactions
-      .filter(t => t.transaction_type === 'entrada' && t.status === 'pago')
+      .filter(t => t.transaction_type === 'entrada' && (t.status === 'pago' || t.status === 'recebido'))
       .reduce((sum, t) => sum + t.amount, 0);
 
     const prevMonthlyRevenue = prevMonthlyTransactions
-      .filter(t => t.transaction_type === 'entrada' && t.status === 'pago')
+      .filter(t => t.transaction_type === 'entrada' && (t.status === 'pago' || t.status === 'recebido'))
       .reduce((sum, t) => sum + t.amount, 0);
 
     // Calculate revenue trend
@@ -157,9 +157,9 @@ const Index = () => {
         );
       });
       
-      // For receitas (incomes), we consider 'pago' as realized
+      // For receitas (incomes), we consider 'pago' or 'recebido' as realized
       const revenue = monthTransactions
-        .filter(t => t.transaction_type === 'entrada' && t.status === 'pago')
+        .filter(t => t.transaction_type === 'entrada' && (t.status === 'pago' || t.status === 'recebido'))
         .reduce((sum, t) => sum + t.amount, 0);
         
       // For despesas (expenses), we consider 'pago' as realized
@@ -361,8 +361,8 @@ const Index = () => {
                   <div>
                     <p className="font-medium">{transaction.description}</p>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(transaction.created_at).toLocaleDateString('pt-BR')} • 
-                      {transaction.status === 'pago' || transaction.status === 'transferido' ? ' Realizado' : ' Pendente'}
+                      {new Date(transaction.created_at).toLocaleDateString('pt-BR')} •
+                      {transaction.status === 'pago' || transaction.status === 'recebido' || transaction.status === 'transferido' ? ' Realizado' : ' Pendente'}
                     </p>
                   </div>
                   <span className={`font-medium ${

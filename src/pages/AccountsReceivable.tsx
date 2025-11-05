@@ -130,10 +130,11 @@ export default function AccountsReceivable() {
     const statusConfig = {
       pendente: { label: 'Pendente', variant: 'secondary' as const },
       pago: { label: 'Pago', variant: 'default' as const },
+      recebido: { label: 'Recebido', variant: 'default' as const },
       cancelado: { label: 'Cancelado', variant: 'destructive' as const },
       atrasado: { label: 'Atrasado', variant: 'destructive' as const }
     };
-    
+
     const config = statusConfig[status as keyof typeof statusConfig];
     return <Badge variant={config?.variant || 'secondary'}>{config?.label || status}</Badge>;
   };
@@ -169,6 +170,7 @@ export default function AccountsReceivable() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pago':
+      case 'recebido':
         return 'text-green-600';
       case 'atrasado':
         return 'text-red-600';
@@ -362,7 +364,7 @@ export default function AccountsReceivable() {
                 <p className="text-xl font-bold">
                   {formatCurrency(
                     filteredByDateRange
-                      .filter(t => t.status === 'pago')
+                      .filter(t => t.status === 'pago' || t.status === 'recebido')
                       .reduce((sum, t) => sum + t.amount, 0)
                   )}
                 </p>
@@ -400,6 +402,7 @@ export default function AccountsReceivable() {
                 <SelectItem value="pendente">Pendente</SelectItem>
                 <SelectItem value="atrasado">Atrasado</SelectItem>
                 <SelectItem value="pago">Pago</SelectItem>
+                <SelectItem value="recebido">Recebido</SelectItem>
                 <SelectItem value="cancelado">Cancelado</SelectItem>
               </SelectContent>
             </Select>
