@@ -37,7 +37,8 @@ export default function Reports() {
   const filteredTransactions = useMemo(() => {
     if (!transactions) return [];
 
-    let filtered = transactions.filter(t => t.status === 'pago');
+    // Incluir transações pagas E recebidas (receitas são marcadas como 'recebido')
+    let filtered = transactions.filter(t => t.status === 'pago' || t.status === 'recebido');
 
     if (startDate && endDate) {
       filtered = filtered.filter(t => {
